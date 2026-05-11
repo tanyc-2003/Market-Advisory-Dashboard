@@ -1,0 +1,21 @@
+.env
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+*.egg-info/
+build/
+dist/
+data/db/*.duckdb
+data/db/*.wal
+data/cache/features/*.parquet
+.venv/
+venv/
+
+# Claude Code local config
+.claude/
+
