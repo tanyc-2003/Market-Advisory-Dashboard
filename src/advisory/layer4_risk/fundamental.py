@@ -45,14 +45,39 @@ class AssetExposureResult:
     status: str  # "OK" | "SKIPPED_INSUFFICIENT_DATA"
 
 
+LAYER4_LOCK_MESSAGE: str = (
+    "Layer 4 (Hybrid Risk Model) is locked in V7_lite mode. "
+    "Point-in-Time fundamental factor returns (Sharadar) are required. "
+    "Upgrade to V7 Institutional or see the roadmap."
+)
+
+
 class FundamentalRiskModel:
     """Exponentially-weighted OLS + ridge + tail-beta regressions.
 
     Every method records to the audit log before fitting.
+
+    In V7_lite mode (``app_mode="v7_lite"``) every public regression
+    method returns ``{"status": "LOCKED"}`` — the model still
+    instantiates cleanly so the dashboard can show a locked tile
+    without crashing.
     """
 
-    def __init__(self, audit_log: AuditLog):
+    def __init__(
+        self, audit_log: AuditLog, app_mode: str = "v7_institutional"
+    ) -> None:
         self.audit_log = audit_log
+        self.app_mode = app_mode
+        self._locked = app_mode == "v7_lite"
+
+    def _locked_response(self, ticker: str) -> dict[str, Any]:
+        return {
+            "ticker": ticker,
+            "status": "LOCKED",
+            "message": LAYER4_LOCK_MESSAGE,
+            "factor_exposures": {},
+            "lag_enforced": True,
+        }
 
     # --- internals --------------------------------------------------------
 
@@ -115,6 +140,8 @@ class FundamentalRiskModel:
         asset_returns: pd.Series,
         lam: float = EW_LAMBDA_SHORT,
     ) -> dict[str, Any]:
+        if self._locked:
+            return self._locked_response(ticker)
         self.audit_log.record(
             "layer4", "fit_ew_ols", {"ticker": ticker, "lambda": lam}
         )
@@ -161,6 +188,8 @@ class FundamentalRiskModel:
         asset_returns: pd.Series,
         alpha: float = 1.0,
     ) -> dict[str, Any]:
+        if self._locked:
+            return self._locked_response(ticker)
         self.audit_log.record(
             "layer4", "fit_ridge", {"ticker": ticker, "alpha": alpha}
         )
@@ -214,6 +243,8 @@ class FundamentalRiskModel:
         asset_returns: pd.Series,
         lookback_days: int = TAIL_BETA_LOOKBACK_DAYS,
     ) -> dict[str, Any]:
+        if self._locked:
+            return self._locked_response(ticker)
         self.audit_log.record(
             "layer4",
             "fit_tail_betas",

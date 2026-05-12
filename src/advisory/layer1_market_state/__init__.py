@@ -13,6 +13,12 @@ from .normalizer import (
     ewma_normalize,
     normalize_feature_matrix,
 )
+from .registry import (
+    get_active_model,
+    load_market_state_engine,
+    promote_candidate,
+    register_candidate,
+)
 
 __all__ = [
     "EWMA_CLIP",
@@ -22,7 +28,11 @@ __all__ = [
     "TRANSITION_UNCERTAINTY_THRESHOLD",
     "dimensionality_adequacy",
     "ewma_normalize",
+    "get_active_model",
+    "load_market_state_engine",
     "normalize_feature_matrix",
+    "promote_candidate",
+    "register_candidate",
     "select_k_oos",
     "train_market_state_engine",
     "winsorize",

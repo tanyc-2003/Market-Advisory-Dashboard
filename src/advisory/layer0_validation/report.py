@@ -7,11 +7,18 @@ research-grade only (``research_preview``), or unsafe to display
 
 The :func:`requires_production` decorator wraps any layer method that
 must not run unless its report carries ``production_ready=True``.
+
+**V7_lite extensions.** Two enums (:class:`ValidationStatus`,
+:class:`LiteBypassReason`) plus four extra dataclass fields encode the
+lite-mode states.  All extensions are additive — the existing V7
+Institutional construction path (no new fields supplied) continues to
+work unchanged.
 """
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
 from datetime import date
+from enum import Enum
 from functools import wraps
 from typing import Any, Callable, Literal, Optional
 
@@ -21,6 +28,31 @@ class ValidationGateError(RuntimeError):
 
 
 Status = Literal["production", "research_preview", "blocked"]
+
+
+class ValidationStatus(str, Enum):
+    """Architectural status values a layer can carry.
+
+    ``LITE_SURVIVORSHIP`` is the V7_lite analogue of ``PRODUCTION`` — all
+    statistical checks passed, but survivorship audit was bypassed.
+    ``VALIDATION_PAUSED_DATA_INTEGRITY`` is set by the
+    :class:`ContinuousValidator` Data Integrity Gate when the yfinance
+    adapter reports too many missing or stale bars to draw conclusions.
+    """
+
+    PRODUCTION = "production"
+    LITE_SURVIVORSHIP = "lite_survivorship"
+    RESEARCH_PREVIEW = "research_preview"
+    BLOCKED = "blocked"
+    VALIDATION_PAUSED_DATA_INTEGRITY = "validation_paused_data_integrity"
+
+
+class LiteBypassReason(str, Enum):
+    """Why a layer's standard validation was bypassed in V7_lite mode."""
+
+    SURVIVORSHIP_AUDIT = "survivorship_audit"
+    PIT_DATA_REQUIRED = "pit_data_required"
+    OPTIONS_DATA_MISSING = "options_data_missing"
 
 
 @dataclass
@@ -48,8 +80,10 @@ class ValidationReport:
     audit_trial_count: int = 0
     n_trials_used: int = 0
 
-    # Survivorship
-    survivorship_audit: Literal["PASSED", "FAILED", "UNRUN"] = "UNRUN"
+    # Survivorship — extended literal to include the V7_lite bypass marker.
+    survivorship_audit: Literal[
+        "PASSED", "FAILED", "UNRUN", "BYPASSED_LITE_MODE"
+    ] = "UNRUN"
     survivorship_coverage: float = 0.0
 
     # Optional extras (used by Layers 1 / 2 reports)
@@ -62,8 +96,21 @@ class ValidationReport:
     rationale: str = ""
     extras: dict[str, Any] = field(default_factory=dict)
 
+    # ---- V7_lite extension fields (default values keep V7 institutional ----
+    # construction calls source-compatible)
+    app_mode: str = "v7_institutional"
+    validation_status: Optional[ValidationStatus] = None
+    lite_bypass_reasons: list[str] = field(default_factory=list)
+    lite_bias_disclosure: Optional[str] = None
+    validation_paused_reason: Optional[str] = None
+
     @property
-    def status(self) -> Status:
+    def status(self) -> str:
+        # V7_lite path: if a ValidationStatus was attached, surface it
+        # verbatim — it takes precedence over the legacy 3-state heuristic.
+        if self.validation_status is not None:
+            return self.validation_status.value
+        # Legacy V7 Institutional path — unchanged.
         if (
             self.survivorship_audit == "FAILED"
             or self.walk_forward_sharpe <= 0
@@ -78,6 +125,8 @@ class ValidationReport:
         d = asdict(self)
         d["as_of"] = self.as_of.isoformat()
         d["status"] = self.status
+        if self.validation_status is not None:
+            d["validation_status"] = self.validation_status.value
         return d
 
 

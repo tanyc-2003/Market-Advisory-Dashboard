@@ -4,6 +4,8 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
+from config.settings import settings
+from src.advisory.dashboard.components.lock_tile import render_layer_lock_tile
 from src.advisory.dashboard.components.unknowns_expander import (
     render_unknowns_section,
 )
@@ -65,6 +67,21 @@ def render() -> None:
     st.divider()
     st.subheader("Correlation clusters")
     st.caption(CLUSTER_WARNING_TEXT)
+
+    st.divider()
+    st.subheader("Factor exposures (Layer 4)")
+    if settings.app_mode == "v7_lite":
+        render_layer_lock_tile("layer4")
+        st.caption(
+            "Position-impact preview above still works — it handles an "
+            "empty `asset_exposures` dict gracefully (returns "
+            "`factor_additions={}`)."
+        )
+    else:
+        st.info(
+            "Orthogonalised factor exposures + residual cluster alerts "
+            "render here in V7 Institutional mode."
+        )
 
     render_unknowns_section([])
 

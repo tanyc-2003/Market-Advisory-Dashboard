@@ -24,6 +24,28 @@ FEATURE_HALFLIVES: dict[str, int] = {
     "iv_rv_ratio":          21,
 }
 
+# V7_lite additional entries — additive only.  The V7 Institutional
+# entries above are not modified.
+FEATURE_HALFLIVES.update(
+    {
+        "hy_oas":                   63,
+        "ig_oas":                   63,
+        "sector_relative_ret_252d": 126,
+        "vix_9d":                    5,
+        "vix_1m":                   21,
+        "vix_3m":                   42,
+        "vix_term_slope":           21,
+        "skew_index":               21,
+        "put_call_ratio":           10,
+        "ma_spread_50_200d":        42,
+        "atr_pct_21d":              42,
+        "pct_above_ma20":           21,
+        "volume_norm_21d":          21,
+        "treasury_10yr_roc_21d":    42,
+        "rolling_sector_correlation_63d": 63,
+    }
+)
+
 _DEFAULT_HALFLIFE: int = 63
 
 

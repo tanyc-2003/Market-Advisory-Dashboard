@@ -57,6 +57,8 @@ class RealisticExecutionHarness:
         adv: float,
         vol_z: float = 0.0,
         spread_z: float = 0.0,
+        friction_proxy: dict | None = None,
+        app_mode: str = "v7_institutional",
     ) -> FillResult:
         """Simulate a single fill.
 
@@ -75,7 +77,33 @@ class RealisticExecutionHarness:
         vol_z, spread_z:
             Z-scored realised vol and spread friction proxies.  Both 0
             in calm regimes; positive in stress.
+        friction_proxy:
+            V7_lite friction packet from
+            :meth:`LiteFrictionMonitor.compute_friction_proxy`.  Must
+            carry ``cs_spread_execution_proxy`` (harness fill-cost) and
+            ``amihud_z`` (volume proxy).  See assertion below.
+        app_mode:
+            ``"v7_lite"`` triggers the architectural assertion guard
+            that prevents ``amihud_z`` from being mistakenly substituted
+            for the spread proxy.  Always verify in lite mode.
         """
+        # Architectural invariant: in V7_lite, the harness MUST receive a
+        # cs_spread_execution_proxy (Corwin-Schultz half-spread) for fill
+        # cost.  amihud_z is a *price-impact* measure, not a half-spread —
+        # silently substituting it would corrupt the fill cost.
+        if friction_proxy is not None and app_mode == "v7_lite":
+            assert "cs_spread_execution_proxy" in friction_proxy, (
+                "Harness requires cs_spread_execution_proxy from "
+                "LiteFrictionMonitor.  amihud_z is a price-impact measure — "
+                "not a half-spread.  Do not substitute.  Pass friction_proxy "
+                "from LiteFrictionMonitor.compute_friction_proxy()."
+            )
+            spread_z = float(friction_proxy["cs_spread_execution_proxy"])
+            vol_z = float(friction_proxy.get("amihud_z", 0.0))
+        elif friction_proxy is not None:
+            spread_z = float(friction_proxy.get("spread_z", spread_z))
+            vol_z = float(friction_proxy.get("volume_z", vol_z))
+
         if direction not in self.VALID_DIRECTIONS:
             raise ValueError(
                 f"direction must be one of {self.VALID_DIRECTIONS!r}; got {direction!r}"

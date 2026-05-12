@@ -1,0 +1,125 @@
+# V7_lite sector map.
+#
+# Maps each ticker in the analytical universe to its sector ETF.  Used
+# by sector_relative_return_252d() in the lite feature pipeline.  Must
+# be refreshed at each S&P 500 rebalance event.
+#
+# Sector ETF set (11): XLK XLF XLV XLY XLP XLE XLI XLB XLRE XLU XLC
+
+# Technology (XLK)
+AAPL:  XLK
+MSFT:  XLK
+NVDA:  XLK
+AVGO:  XLK
+ORCL:  XLK
+ADBE:  XLK
+CRM:   XLK
+CSCO:  XLK
+AMD:   XLK
+INTC:  XLK
+QCOM:  XLK
+TXN:   XLK
+IBM:   XLK
+NOW:   XLK
+INTU:  XLK
+
+# Communication services (XLC) — Google, Meta, Netflix, T, VZ
+GOOGL: XLC
+GOOG:  XLC
+META:  XLC
+NFLX:  XLC
+DIS:   XLC
+T:     XLC
+VZ:    XLC
+CMCSA: XLC
+
+# Consumer discretionary (XLY)
+AMZN:  XLY
+TSLA:  XLY
+HD:    XLY
+MCD:   XLY
+NKE:   XLY
+SBUX:  XLY
+LOW:   XLY
+TJX:   XLY
+BKNG:  XLY
+F:     XLY
+GM:    XLY
+
+# Consumer staples (XLP)
+WMT:   XLP
+PG:    XLP
+COST:  XLP
+KO:    XLP
+PEP:   XLP
+PM:    XLP
+MO:    XLP
+MDLZ:  XLP
+CL:    XLP
+
+# Financials (XLF)
+JPM:   XLF
+BAC:   XLF
+WFC:   XLF
+GS:    XLF
+MS:    XLF
+C:     XLF
+AXP:   XLF
+BLK:   XLF
+SCHW:  XLF
+SPGI:  XLF
+USB:   XLF
+PNC:   XLF
+TFC:   XLF
+
+# Healthcare (XLV)
+UNH:   XLV
+JNJ:   XLV
+LLY:   XLV
+PFE:   XLV
+ABBV:  XLV
+TMO:   XLV
+ABT:   XLV
+MRK:   XLV
+DHR:   XLV
+BMY:   XLV
+AMGN:  XLV
+GILD:  XLV
+CVS:   XLV
+CI:    XLV
+
+# Industrials (XLI)
+HON:   XLI
+RTX:   XLI
+BA:    XLI
+UPS:   XLI
+CAT:   XLI
+GE:    XLI
+DE:    XLI
+LMT:   XLI
+UNP:   XLI
+MMM:   XLI
+
+# Energy (XLE)
+XOM:   XLE
+CVX:   XLE
+COP:   XLE
+SLB:   XLE
+EOG:   XLE
+OXY:   XLE
+
+# Materials (XLB)
+LIN:   XLB
+SHW:   XLB
+APD:   XLB
+ECL:   XLB
+
+# Utilities (XLU)
+NEE:   XLU
+SO:    XLU
+DUK:   XLU
+
+# Real Estate (XLRE)
+PLD:   XLRE
+AMT:   XLRE
+EQIX:  XLRE

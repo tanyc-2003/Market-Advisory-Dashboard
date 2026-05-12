@@ -8,6 +8,8 @@ from .confidence import CONFIDENCE_LANGUAGE, get_confidence_language
 from .contradictions import (
     CONTRADICTION_LABEL,
     CONTRADICTION_PAIRS,
+    CONTRADICTION_STATUS,
+    LITE_NULL_FEATURES,
     find_validated_contradictions,
 )
 from .fdr import (
@@ -24,6 +26,8 @@ __all__ = [
     "CONFIDENCE_LANGUAGE",
     "CONTRADICTION_LABEL",
     "CONTRADICTION_PAIRS",
+    "CONTRADICTION_STATUS",
+    "LITE_NULL_FEATURES",
     "SEVERITY_SCORES",
     "STRUCTURAL_CHANGE_UNKNOWN",
     "apply_fdr_correction",

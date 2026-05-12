@@ -29,8 +29,19 @@ The architecture rests on one rule: **no layer output is treated as evidence unt
 | 11 | Position Sizing Diagnostics | OK |
 | 12 | Streamlit Dashboard | OK |
 | 13 | LLM Interpretation (optional) | OK |
+| **V7_lite** | Scanner+ extension (free-data tier) | **OK** |
 
-Tests: **188 passing** under Python 3.14.
+Tests: **280 passing** under Python 3.14 (205 V7 Institutional + 75 V7_lite).
+
+## Modes
+
+| Mode | Data | Layers active | Notes |
+|---|---|---|---|
+| `APP_MODE=v7_lite` (default) | yfinance · FRED · CBOE (free) | All except Layers 3 + 4 | Survivorship bias disclosed on every page that shows analog distributions |
+| `APP_MODE=v7_institutional` (with paid keys) | Polygon · Sharadar · FRED · CBOE | All | Full layer set; no bias panels |
+| `APP_MODE=v7_institutional` (no keys) | **Synthetic only** | All | "Developer Mode" red banner; for exercising the dashboard without subscriptions |
+
+Switch modes by setting `APP_MODE` in `.env` and restarting Streamlit.
 
 ---
 
@@ -92,14 +103,24 @@ src/advisory/
   layer3_attribution/   # interventional TreeExplainer - factor redundancy
   layer4_risk/          # factor orthogonalisation - EW-OLS - ridge - tail betas - residual PCA
   layer5_stress/        # economic calendar - IntradayFrictionMonitor
+                        # V7_lite: lite_monitor.py adds LiteFrictionMonitor
+                        #          (Amihud + Corwin-Schultz, strict separation)
   layer6_portfolio/     # position impact preview - two-regime covariance - clustering
   layer7_hygiene/       # validated contradictions - FDR (BY) - confidence language - unknowns
+                        # V7_lite: UNTESTABLE_LITE_MODE branch on contradictions
   layer8_journal/       # JournalEntry - JournalStore (DuckDB CRUD)
   layer9_calibration/   # TraderCalibrationSystem (reliability - Brier - ECE - Wilson - thesis-drift)
   layer10_sizing/       # tail-aware Kelly - regime haircut - 20% absolute cap
+                        # V7_lite: lite_diagnostics.py adds binomial wipeout injection
   layer_llm/            # optional, off-path: LLMContextPacket + CachedLLMInterface
   dashboard/            # Streamlit entry, state helpers, components, 8 pages
+                        # V7_lite: mode indicator, survivorship panel,
+                        #          locked tiles, dev-mode banner
   paper_trading/        # RealisticExecutionHarness
+                        # V7_lite: CS-spread / amihud_z separation assertion
+data_infra/             # Adapters (yfinance, FRED PIT-safe, CBOE),
+                        # 9-dim feature pipeline (feature_pipeline_lite.py),
+                        # sector_map loader, audit schema
 
 config/
   settings.py           # pydantic-settings: paths, validation thresholds, EWMA clip

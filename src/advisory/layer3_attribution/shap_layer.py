@@ -66,6 +66,13 @@ def _expected_calibration_error(
     return ece
 
 
+LAYER3_LOCK_MESSAGE: str = (
+    "Layer 3 (Signal Attribution) is locked in V7_lite mode. "
+    "Point-in-Time fundamental data (Sharadar) is required. "
+    "Upgrade to V7 Institutional or see the roadmap."
+)
+
+
 @dataclass
 class SignalAttributionLayer:
     model: Any
@@ -74,10 +81,20 @@ class SignalAttributionLayer:
     """A callable ``today -> np.ndarray`` that returns the background
     matrix for the lookback window ending at ``today``."""
     today: date
+    app_mode: str = "v7_institutional"
+    """When ``"v7_lite"``, every output method returns ``{"status": "LOCKED"}``
+    instead of running.  The class still constructs cleanly — there is
+    no crash on init."""
     background_vintage: date = field(init=False)
     explainer: Any = field(init=False, repr=False)
 
     def __post_init__(self) -> None:
+        if self.app_mode == "v7_lite":
+            self._locked = True
+            self.background_vintage = self.today  # field has a value
+            self.explainer = None
+            return
+        self._locked = False
         if not hasattr(self.model, "predict_proba"):
             raise TypeError(
                 "model must support predict_proba(). "
@@ -121,6 +138,13 @@ class SignalAttributionLayer:
         ticker: str,
         as_of: date,
     ) -> dict[str, Any]:
+        if getattr(self, "_locked", False):
+            return {
+                "status": "LOCKED",
+                "ticker": ticker,
+                "as_of": as_of.isoformat(),
+                "message": LAYER3_LOCK_MESSAGE,
+            }
         self._maybe_refresh(as_of)
         x = np.asarray(features, dtype=float).reshape(1, -1)
         shap_values = self.explainer.shap_values(x)
