@@ -34,7 +34,11 @@ Module: [src/advisory/data_infra/](../src/advisory/data_infra/)
 | `FUNDAMENTAL_LAGS` + `get_lag(name)` | Knowledge-date lag in trading days per feature. Unknown features default to 1 (conservative). |
 | `FeatureStore(db_path, cache_dir)` | The only read path for features. `get_feature_pit`, `get_feature_history` (lag-aware), `write_features`, `cache_snapshot`, `load_snapshot`. |
 | `trading_days_before(anchor, n)` | Weekend-skipping helper used by the lag arithmetic. |
-| Ingestion connectors | Stub `PolygonConnector`, `SharadarConnector`, `FREDConnector`, `CBOEConnector` with injectable HTTP clients. |
+| Stub connectors | `PolygonConnector`, `SharadarConnector`, `CBOEConnector` — return empty frames; document the paid-source integration point. |
+| `YFinanceConnector` | Real daily OHLCV via Yahoo Finance — free, no API key.  `fetch_daily_ohlcv(tickers, start, end)`. |
+| `FREDConnector` | Real macro series via FRED's public CSV endpoint — free, no API key.  `fetch_series(series_id, start, end)`. |
+| `compute_ohlcv_features(ohlcv)` | OHLCV → long-format feature rows (`ret_1d`/`5d`/`21d`/`63d`, `realized_vol_21d`, `rsi_14`, `pct_above_ma50`, `ret_fwd_10d`).  Schema matches `FeatureStore.write_features`. |
+| `vix_percentile_from_close`, `yield_curve_slope`, `hy_spread_roc` | Macro feature builders consuming FRED / VIX outputs. |
 
 ---
 

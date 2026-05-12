@@ -56,13 +56,72 @@ The seed is deterministic (`SEED = 42`). 11 features are generated per ticker pe
 
 Re-running the script wipes `WHERE source = 'synthetic'` first, so it stays idempotent.
 
+## Ingest real market data
+
+Free sources, no API keys:
+
+```powershell
+python scripts/ingest_real_data.py
+```
+
+Pulls daily OHLCV from Yahoo Finance for the architecture's macro factor proxies (SPY, TLT, HYG, QQQ, IWD, IWM, UUP, DBC, SVXY, SMH) plus five mega-caps (AAPL, MSFT, NVDA, GOOGL, AMZN), the VIX index, and three FRED macro series (DGS10, DGS2, BAMLH0A0HYM2).  Default window is 10 years.
+
+```powershell
+python scripts/ingest_real_data.py --tickers SPY AAPL MSFT --start 2020-01-01 --end 2024-12-31
+python scripts/ingest_real_data.py --skip-fred             # equity only
+python scripts/ingest_real_data.py --keep-synthetic-features  # keep synthetic for A/B
+```
+
+Expected output for the default run:
+
+```
+[OK] Equity feature rows:  298,770
+     VIX feature rows:     2,511
+     Macro feature rows:   3,259
+     Survivorship audit:   NOT-RUN (coverage 0.000)
+     Note: No delisted ticker history present...
+```
+
+The survivorship "NOT-RUN" status is **architecturally correct** — free data sources don't provide a delisted-tickers feed, so the audit refuses to make claims it can't verify.  The pipeline will fall back to `research_preview` for predictive layers (not `production`).  To reach `production` on real data, populate `delisted_tickers` from a real source (paid Polygon delisted endpoint or a curated CSV).
+
+## Populate validation reports
+
+```powershell
+python scripts/run_validation.py
+```
+
+**Run this after seeding.**  The dashboard reads pre-computed `ValidationReport`s from the `validation_reports` table; without this step every layer renders as `no_report` (which is architecturally correct — Layer 0 has not signed anything off yet).
+
+The script performs the full sign-off pass:
+
+1. Survivorship audit on the live + delisted universe.
+2. Walk-forward CV for layers with predictive content (`layer1`, `layer2`) using lagged, label-leak-free signal functions.  Deflated Sharpe is computed against the audit log.
+3. Diagnostic-baseline reports for the math-only layers (`layer3`–`layer10`).  These land in `research_preview` with a rationale explaining that evidentiary status flows from upstream sign-off and paper trading, not from a CV on the diagnostic layer itself.
+4. `layer0` itself is reported `production` when the substrate (audit log + survivorship audit) is operational.
+
+Expected output:
+
+```
+Layer                  Status              WF Sharpe   CPCV p30      DSR
+------------------------------------------------------------------------
+layer0                 production              1.000      0.000    1.000
+layer1                 production              3.540      3.233    0.987
+layer2                 production              5.305      5.055    1.000
+layer3                 research_preview        0.010      0.010    0.000
+layer4                 research_preview        0.010      0.010    0.000
+...
+Persisted 11 ValidationReport(s) to data\db\main.duckdb
+```
+
+(Sharpes are inflated because the synthetic data has positive drift; a real-data run would produce more realistic numbers.)  Re-running the script is idempotent — `persist_report` uses `INSERT OR REPLACE`.
+
 ## Run the tests
 
 ```powershell
 pytest tests/ -v
 ```
 
-Expected result: **151 passed** in ~25s.
+Expected result: **188 passed** in ~30s.
 
 For coverage:
 ```powershell

@@ -44,15 +44,40 @@ py -3.14 -m venv .venv
 pip install -e ".[dev]"
 
 python scripts/bootstrap_db.py        # creates main.duckdb + audit.duckdb
-python scripts/seed_synthetic_data.py # ~3M synthetic feature rows
 
-pytest tests/ -v                      # 188 passing
+# Pick ONE of the two data paths:
+python scripts/seed_synthetic_data.py  # deterministic synthetic universe (no network)
+# - OR -
+python scripts/ingest_real_data.py     # real OHLCV (yfinance) + macro (FRED) - no API key
+
+python scripts/run_validation.py       # populate validation_reports (required before dashboard is useful)
+
+pytest tests/ -v                       # 205 passing
 
 # Run the dashboard (Phase 12)
 streamlit run src/advisory/dashboard/app.py
 ```
 
+> **Why `run_validation.py` is required.** The dashboard reads pre-computed `ValidationReport`s from the `validation_reports` table and refuses to display layer outputs without one — every layer shows `no_report` until you populate it. This is the architectural default: nothing is treated as evidence until Layer 0 has signed it off. Run `python scripts/run_validation.py` after the data step to perform the sign-off pass.
+
 `scripts/seed_synthetic_data.py` is deterministic (seed = 42) and writes both 100 live tickers and 20 synthetic delisted tickers so the survivorship audit can pass on day one.
+
+## Real market data
+
+`scripts/ingest_real_data.py` is the day-one path to running the system on real prices:
+
+| Source | What | Cost |
+|---|---|---|
+| Yahoo Finance (via `yfinance`) | Daily OHLCV + VIX index | free, no key |
+| FRED | Treasury rates (DGS10, DGS2) + ICE BofA HY OAS | free, no key (public CSV endpoint) |
+
+Default universe is the 10 macro factor proxies from the architecture (SPY, TLT, HYG, QQQ, IWD, IWM, UUP, DBC, SVXY, SMH) plus a handful of mega-caps (AAPL, MSFT, NVDA, GOOGL, AMZN). Override with `--tickers`, `--start`, `--end`. Default lookback is 10 years.
+
+By default the script wipes synthetic feature rows (`source = 'synthetic'`) and synthetic delisted entries (`DEL###`) so the validation pipeline averages over real data only. Use `--keep-synthetic-features` or `--keep-synthetic-delisted` to retain them side-by-side.
+
+**A note on survivorship**: free data sources don't provide a clean delisted-tickers feed. Without one, the survivorship audit cannot run against real data, and Layer 0 falls back to `research_preview` for predictive layers (the architecturally correct degradation — the system refuses to claim production sign-off on a universe it can't audit). To get to `production` on real data you'd need either a paid Polygon delisted endpoint, a Sharadar subscription, or to manually populate `delisted_tickers` with a curated list of known historical delistings.
+
+For production-grade fundamentals (earnings revisions, analyst surprise, etc.) you'd plug in Polygon/Sharadar API keys via `.env` — the stub connectors in [src/advisory/data_infra/ingestion.py](src/advisory/data_infra/ingestion.py) document that integration point.
 
 ---
 

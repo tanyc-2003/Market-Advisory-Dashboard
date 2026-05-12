@@ -3,10 +3,13 @@
 ## Running it
 
 ```powershell
+python scripts/run_validation.py            # populate validation_reports first
 streamlit run src/advisory/dashboard/app.py
 ```
 
 Open `http://localhost:8501`. The first page you should see is the **Validation** page — every other page is gated on the Layer 0 sign-off shown there.
+
+> **If every layer shows `no_report`**, you skipped `scripts/run_validation.py`. The dashboard does not invent reports; it reads them from DuckDB. See [05_running.md](05_running.md#populate-validation-reports) for what the script does.
 
 ## The eight pages
 
