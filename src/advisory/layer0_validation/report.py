@@ -137,6 +137,67 @@ def validate_layer(report: ValidationReport) -> str:
     return report.status
 
 
+def persist_report(conn: Any, report: ValidationReport) -> None:
+    """Insert-or-replace ``report`` into the ``validation_reports`` table.
+
+    The conn argument is typed ``Any`` to avoid importing duckdb here;
+    in practice a :class:`duckdb.DuckDBPyConnection`.
+    """
+    import json
+
+    report_id = f"{report.layer_name}::{report.as_of.isoformat()}"
+    payload = json.dumps(report.to_dashboard_dict(), default=str)
+    conn.execute(
+        """
+        INSERT OR REPLACE INTO validation_reports
+            (report_id, layer_name, as_of, status, production_ready, payload)
+        VALUES (?, ?, ?, ?, ?, ?)
+        """,
+        (
+            report_id,
+            report.layer_name,
+            report.as_of.isoformat(),
+            report.status,
+            report.production_ready,
+            payload,
+        ),
+    )
+
+
+def load_latest_report(conn: Any, layer_name: str) -> ValidationReport | None:
+    """Return the most recent persisted report for ``layer_name``."""
+    import json
+    from datetime import date as _date
+
+    row = conn.execute(
+        """
+        SELECT payload FROM validation_reports
+        WHERE layer_name = ?
+        ORDER BY as_of DESC
+        LIMIT 1
+        """,
+        (layer_name,),
+    ).fetchone()
+    if row is None:
+        return None
+    payload = json.loads(row[0])
+    payload.pop("status", None)  # derived, not stored
+    as_of = payload.pop("as_of", None)
+    as_of_date = (
+        _date.fromisoformat(as_of) if isinstance(as_of, str) else as_of or _date.today()
+    )
+    extras = payload.pop("extras", {}) or {}
+    report = ValidationReport(
+        layer_name=payload.pop("layer_name", layer_name),
+        as_of=as_of_date,
+        extras=extras,
+    )
+    for key, value in payload.items():
+        if hasattr(report, key):
+            setattr(report, key, value)
+    return report
+
+
 def requires_production(get_report: Callable[[], ValidationReport]) -> Callable:
     """Decorator factory: gate a method on its layer's ValidationReport.
 

@@ -71,6 +71,17 @@ CREATE TABLE IF NOT EXISTS validation_reports (
 );
 """
 
+LLM_CACHE_DDL = """
+CREATE TABLE IF NOT EXISTS llm_cache (
+    prompt_hash   VARCHAR PRIMARY KEY,
+    model_id      VARCHAR NOT NULL,
+    as_of_date    DATE    NOT NULL,
+    prompt        TEXT    NOT NULL,
+    response      TEXT    NOT NULL,
+    created_at    TIMESTAMP NOT NULL DEFAULT now()
+);
+"""
+
 JOURNAL_ENTRIES_DDL = """
 CREATE TABLE IF NOT EXISTS journal_entries (
     entry_id          VARCHAR  PRIMARY KEY,
@@ -116,6 +127,7 @@ def bootstrap_schema(conn: duckdb.DuckDBPyConnection) -> None:
         BACKTEST_EXEC_DDL,
         VALIDATION_REPORTS_DDL,
         JOURNAL_ENTRIES_DDL,
+        LLM_CACHE_DDL,
     ):
         for statement in ddl.strip().split(";"):
             stmt = statement.strip()

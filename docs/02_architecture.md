@@ -77,6 +77,8 @@ Every arrow into a downstream layer goes through the Layer 0 gate. The gate is n
 | 8 (journal) | data_infra (DuckDB) |
 | 9 (calibration) | 8 (journal as polars frame) |
 | 10 (sizing) | 2 (analog returns), 1 (state_uncertainty), 2 (overlap_pct) |
+| dashboard (Phase 12) | DuckDB readers + every layer's persisted `ValidationReport` |
+| layer_llm (Phase 13, optional) | dashboard packet builder; gated by `LLM_ENABLED` |
 
 Note the implementation order for phases 6/7 inverts the layer numbering. The architecture (§21) requires Layer 6 to be built first so Layer 5 can be a clean float-only dependency. The Layer 2 engine accepts an optional `friction_monitor` constructor argument and pulls `vol_z` from it via `monitor.get_vol_z(ticker)` — no direct import of Layer 5 from Layer 2.
 
@@ -99,7 +101,7 @@ Two DuckDB files:
 
 | File | Tables | Purpose |
 |---|---|---|
-| `data/db/main.duckdb` | `features_pit`, `delisted_tickers`, `paper_trade_performance`, `validation_reports`, `journal_entries` | feature store + trader journal |
+| `data/db/main.duckdb` | `features_pit`, `delisted_tickers`, `paper_trade_performance`, `validation_reports`, `journal_entries`, `llm_cache` | feature store + trader journal + LLM cache |
 | `data/db/audit.duckdb` | `backtest_executions` | monotonic trial counter for DSR |
 
 The trial count is the **row count** of `backtest_executions`, not a separate counter column. A half-written insert cannot drift it.

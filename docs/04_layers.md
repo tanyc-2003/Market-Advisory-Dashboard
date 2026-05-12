@@ -192,3 +192,60 @@ Module: [src/advisory/paper_trading/](../src/advisory/paper_trading/)
 |---|---|
 | `RealisticExecutionHarness` | `simulate_fill(direction, bid, ask, order_size, adv, vol_z, spread_z)` returns `FillResult`. Buys >= ask, sells <= bid. `simulate_vwap_execution(...)` slices an order across intraday bars. |
 | `SQRT_IMPACT_K = 0.1`, `FRICTION_LAMBDA = 0.4` | Tunable constants exposed as class attributes. |
+
+---
+
+## Streamlit Dashboard (Phase 12)
+
+Module: [src/advisory/dashboard/](../src/advisory/dashboard/)
+
+| Symbol | Contract |
+|---|---|
+| `app.py` | Entry point. `streamlit run src/advisory/dashboard/app.py`. Renders the sidebar with one badge per layer + a stale-data banner. |
+| `state.py` | Every helper goes through `init_session_state()` first. Pages never touch `st.session_state` directly; they call typed getters/setters here. Streamlit is imported lazily so tests can plug in a plain dict. |
+| `services.py` | DuckDB-backed read helpers: `open_main_conn`, `get_validation_report`, `list_layer_status_rows`, `get_journal_store`, `is_data_stale`, `persist_validation_report`. |
+| `components.validation_badge` | `badge_emoji` / `badge_label` for the three sign-off statuses + `render_research_preview_banner` + `render_blocked_output`. `RESEARCH_PREVIEW_HEADLINE` and `BLOCKED_MESSAGE_TEMPLATE` are the architecture-pinned strings. |
+| `components.distribution_chart` | `build_distribution_figure(...)` produces a Plotly histogram with global + within-state overlays and p5/p25/p50 markers. Unit-testable without Streamlit. |
+| `components.disagreement_banner` | `DISAGREEMENT_OVERLAP_FLOOR = 0.70`; banner only fires below the floor. |
+| `components.unknowns_expander` | Collapsed expander; title `"⚠️ What This System Does Not Know"`. |
+| `pages/1_validation.py` | Default landing page — layer-status table, DSR notes, survivorship coverage. |
+| `pages/2_market_state.py` | State probability vector + dominant state + transition signal banner. |
+| `pages/3_watchlist.py` | Asset selector, analog distribution chart, disagreement banner, unknowns. |
+| `pages/4_portfolio.py` | Editable weight table, stress scenario dropdown (pulls from `list_scenarios()`), cluster warning text. |
+| `pages/5_sizing.py` | All four Kelly variants in metric cards, Kelly cap displayed prominently, exact `SIZING_NOTE`. |
+| `pages/6_journal.py` | New-entry form, open-trades table, close-trade form, completed-trades table. |
+| `pages/7_calibration.py` | Reliability diagram (predicted vs observed by confidence band), Brier/ECE metric cards, thesis-drift warning. |
+| `pages/8_query.py` | LLM page. Calls `st.stop()` immediately when `settings.llm_enabled is False`, so the page is effectively hidden. |
+
+**Pattern enforced on every layer page**:
+
+```python
+report = get_validation_report(conn, "layerN")
+if report is not None:
+    if report.status == "blocked":
+        render_blocked_output("layerN", report.rationale)
+        return
+    if report.status == "research_preview":
+        render_research_preview_banner("layerN", report.rationale)
+# ...page content...
+```
+
+---
+
+## Optional LLM Interpretation (Phase 13)
+
+Module: [src/advisory/layer_llm/](../src/advisory/layer_llm/)
+
+**Off the critical path.** The dashboard is fully functional without this layer. `settings.llm_enabled` defaults to `False`; only `.env` may turn it on. Even when enabled, the LLM is strictly read-only.
+
+| Symbol | Contract |
+|---|---|
+| `LLMContextPacket` | Dataclass; `estimated_tokens()` is the cap-enforcement hook. Capped at ~2,000 tokens; market state truncated to 3 sentences. |
+| `build_context_packet(...)` | Builder that shrinks the asset list (then the alert list) until the packet fits the token cap. Raises `ValueError` on blank query. |
+| `SYSTEM_PROMPT` | Architecture-pinned permitted / prohibited action list. The dashboard never strips it. |
+| `build_prompt(packet)` | Concatenates the SYSTEM / MARKET STATE / TOP ASSETS / ACTIVE ALERTS / CALIBRATION / UNKNOWNS / QUERY sections in the exact architecture order. |
+| `compute_prompt_hash(model, as_of, prompt)` | SHA-256 of `f"{model}::{as_of.isoformat()}::{prompt}"`. Same query on different days → different hashes → forced cache miss. |
+| `CachedLLMInterface(db_path, invoker, now)` | `query(packet, as_of_date)` returns `{"response", "cache_hit", "error", "prompt_hash"}`. Cache TTL = 1 day. Connection failures return `error=True` rather than raising. |
+| `llm_cache` table | DuckDB-backed cache; created idempotently by `bootstrap_schema`. |
+
+The `invoker` and `now` callables exist for tests; in production they default to an Ollama-backed call at temperature 0 and `datetime.utcnow`.
