@@ -125,8 +125,18 @@ class SignalAttributionLayer:
         x = np.asarray(features, dtype=float).reshape(1, -1)
         shap_values = self.explainer.shap_values(x)
         if isinstance(shap_values, list):
+            # Legacy SHAP: list[ndarray] per class — pick positive class.
             shap_values = shap_values[1] if len(shap_values) > 1 else shap_values[0]
-        contributions = np.asarray(shap_values).ravel()
+        contributions = np.asarray(shap_values)
+        if contributions.ndim == 3:
+            # Newer SHAP returns (n_samples, n_features, n_classes); pick positive class.
+            contributions = contributions[..., -1]
+        contributions = contributions.reshape(-1)
+        if contributions.size != len(self.feature_cols):
+            raise ConfigurationError(
+                f"SHAP returned {contributions.size} values for "
+                f"{len(self.feature_cols)} features"
+            )
         order = np.argsort(-np.abs(contributions))
         top_idx = order[:3]
         top_features = [self.feature_cols[i] for i in top_idx]

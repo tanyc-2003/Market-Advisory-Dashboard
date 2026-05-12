@@ -121,7 +121,7 @@ def main() -> None:
                     [np.zeros(21), cum[21:] / cum[:-21] - 1.0]
                 ),
                 "realized_vol_21d": pl.Series(ret_1d)
-                .rolling_std(window_size=21, min_periods=21)
+                .rolling_std(window_size=21, min_samples=21)
                 .fill_null(base_vol)
                 .to_numpy()
                 * np.sqrt(252),

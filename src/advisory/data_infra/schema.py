@@ -71,6 +71,29 @@ CREATE TABLE IF NOT EXISTS validation_reports (
 );
 """
 
+JOURNAL_ENTRIES_DDL = """
+CREATE TABLE IF NOT EXISTS journal_entries (
+    entry_id          VARCHAR  PRIMARY KEY,
+    ticker            VARCHAR  NOT NULL,
+    entry_date        DATE     NOT NULL,
+    direction         VARCHAR  NOT NULL,
+    thesis            TEXT     NOT NULL,
+    primary_catalyst  VARCHAR  NOT NULL,
+    invalidation      TEXT     NOT NULL,
+    expected_horizon  INTEGER  NOT NULL,
+    confidence_self   INTEGER  NOT NULL,
+    market_state_id   INTEGER,
+    analog_hit_rate   DOUBLE,
+    analog_n          INTEGER,
+    contradictions    JSON,
+    unknowns_present  BOOLEAN,
+    exit_date         DATE,
+    pnl_pct           DOUBLE,
+    thesis_validated  BOOLEAN,
+    exit_reason       VARCHAR
+);
+"""
+
 PIT_QUERY = """
     SELECT feature_value
     FROM   features_pit
@@ -92,6 +115,7 @@ def bootstrap_schema(conn: duckdb.DuckDBPyConnection) -> None:
         PAPER_TRADE_DDL,
         BACKTEST_EXEC_DDL,
         VALIDATION_REPORTS_DDL,
+        JOURNAL_ENTRIES_DDL,
     ):
         for statement in ddl.strip().split(";"):
             stmt = statement.strip()
