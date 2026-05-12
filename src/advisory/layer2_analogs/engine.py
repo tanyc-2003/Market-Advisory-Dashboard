@@ -62,13 +62,17 @@ class DisagreementResult:
 @dataclass
 class HistoricalAnalogEngine:
     feature_cols: list[str]
+    friction_monitor: Any | None = None
+    """Optional :class:`IntradayFrictionMonitor` injected by Layer 5.
+    When provided, ``find_analogs`` reads ``friction_monitor.get_vol_z(ticker)``
+    as the ``vol_z`` trigger for covariance cache invalidation.
+    """
     cov_cache: dict = field(default_factory=dict, init=False, repr=False)
 
     def _fit_shrinkage_covariance(
         self, X: np.ndarray, anchor_date: date, vol_z: float = 0.0
     ) -> tuple[np.ndarray, str]:
         """Fit shrinkage covariance with vol-aware cache invalidation."""
-        # TODO: wire Layer 5 vol_z here once the stress monitor exists.
         n_obs, n_feat = X.shape
         cache_key = (anchor_date, round(vol_z, 1))
         if cache_key in self.cov_cache:
@@ -118,11 +122,19 @@ class HistoricalAnalogEngine:
         state_filter: int | None = None,
         vol_z: float = 0.0,
         forward_return_col: str = "ret_fwd_10d",
+        ticker: str | None = None,
     ) -> AnalogResult:
         if min_separation < ABS_MIN_SEPARATION:
             raise ValueError(
                 f"min_separation must be >= {ABS_MIN_SEPARATION}; got {min_separation}"
             )
+        # If a friction monitor is wired in and the caller did not pass
+        # an explicit vol_z, prefer the live read from Layer 5.
+        if self.friction_monitor is not None and ticker is not None and vol_z == 0.0:
+            try:
+                vol_z = float(self.friction_monitor.get_vol_z(ticker))
+            except Exception as exc:  # pragma: no cover - defensive
+                logger.warning("friction_monitor_read_failed", error=str(exc))
         if forward_return_col not in feature_history.columns:
             raise ValueError(
                 f"feature_history missing forward return column {forward_return_col!r}"

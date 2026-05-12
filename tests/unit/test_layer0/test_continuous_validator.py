@@ -21,10 +21,14 @@ def test_insufficient_data_returns_status():
 
 def test_no_demote_when_within_threshold():
     cv = ContinuousValidator()
-    # ~1.0 live vs 1.0 pre-deployment -> divergence ~0
-    log = pl.DataFrame({"pnl_pct": np.full(120, 0.00063)})
-    # Force tiny variance
-    log = log.with_columns(pl.col("pnl_pct") + np.random.default_rng(0).normal(0, 1e-5, 120))
+    # Construct a return stream whose annualised Sharpe is ~1.0 (matches
+    # pre_deployment_sharpe), so divergence stays well inside the 30%
+    # threshold.
+    rng = np.random.default_rng(0)
+    target_sharpe = 1.0
+    std = 0.01
+    mean = target_sharpe * std / float(np.sqrt(252))
+    log = pl.DataFrame({"pnl_pct": rng.normal(mean, std, size=200)})
     result = cv.evaluate("layer1", 1.0, log)
     assert not result["demote_to_research"]
 
