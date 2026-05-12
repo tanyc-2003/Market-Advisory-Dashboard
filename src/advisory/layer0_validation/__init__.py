@@ -6,6 +6,8 @@ from .deflated_sharpe import STATIC_TRIAL_FLOOR, deflated_sharpe
 from .report import (
     ValidationGateError,
     ValidationReport,
+    load_latest_report,
+    persist_report,
     requires_production,
     validate_layer,
 )
@@ -23,6 +25,8 @@ __all__ = [
     "ValidationReport",
     "WalkForwardCV",
     "deflated_sharpe",
+    "load_latest_report",
+    "persist_report",
     "requires_production",
     "validate_layer",
 ]

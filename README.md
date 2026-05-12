@@ -27,10 +27,10 @@ The architecture rests on one rule: **no layer output is treated as evidence unt
 | 9 | Trader Journal | OK |
 | 10 | Trader Calibration System | OK |
 | 11 | Position Sizing Diagnostics | OK |
-| 12 | Streamlit Dashboard | planned |
-| 13 | LLM Interpretation (optional) | planned |
+| 12 | Streamlit Dashboard | OK |
+| 13 | LLM Interpretation (optional) | OK |
 
-Tests: **151 passing** under Python 3.14.
+Tests: **188 passing** under Python 3.14.
 
 ---
 
@@ -46,7 +46,10 @@ pip install -e ".[dev]"
 python scripts/bootstrap_db.py        # creates main.duckdb + audit.duckdb
 python scripts/seed_synthetic_data.py # ~3M synthetic feature rows
 
-pytest tests/ -v                      # 151 passing
+pytest tests/ -v                      # 188 passing
+
+# Run the dashboard (Phase 12)
+streamlit run src/advisory/dashboard/app.py
 ```
 
 `scripts/seed_synthetic_data.py` is deterministic (seed = 42) and writes both 100 live tickers and 20 synthetic delisted tickers so the survivorship audit can pass on day one.
@@ -69,6 +72,8 @@ src/advisory/
   layer8_journal/       # JournalEntry - JournalStore (DuckDB CRUD)
   layer9_calibration/   # TraderCalibrationSystem (reliability - Brier - ECE - Wilson - thesis-drift)
   layer10_sizing/       # tail-aware Kelly - regime haircut - 20% absolute cap
+  layer_llm/            # optional, off-path: LLMContextPacket + CachedLLMInterface
+  dashboard/            # Streamlit entry, state helpers, components, 8 pages
   paper_trading/        # RealisticExecutionHarness
 
 config/
@@ -96,6 +101,8 @@ The full per-layer documentation lives in [`docs/`](docs/):
 - [docs/04_layers.md](docs/04_layers.md) — per-layer specifications and public API
 - [docs/05_running.md](docs/05_running.md) — bootstrap, seed, test, debug
 - [docs/06_developing.md](docs/06_developing.md) — adding a new layer / extending an existing one
+- [docs/07_dashboard.md](docs/07_dashboard.md) — Streamlit pages, sign-off gate behaviour, components
+- [docs/08_llm.md](docs/08_llm.md) — optional LLM interpretation layer
 
 For background reading, the architecture source-of-truth is `Claude code building guide/Advisory_Dashboard_Architecture_v7.md`. The phase-by-phase build guides are in the same folder.
 

@@ -12,5 +12,7 @@ The architecture source-of-truth is `../Claude code building guide/Advisory_Dash
 | [04_layers.md](04_layers.md) | implementer | per-layer public API reference |
 | [05_running.md](05_running.md) | operator | install, bootstrap, seed, test, debug recipes |
 | [06_developing.md](06_developing.md) | implementer | house style, adding a layer/feature, common pitfalls |
+| [07_dashboard.md](07_dashboard.md) | operator / trader | Streamlit pages, sign-off gate behaviour, session state, components |
+| [08_llm.md](08_llm.md) | operator | optional LLM layer — what it can/cannot do, enabling it, cache + TTL |
 
-A reader who wants the shortest path to understanding should read 01 → 03 → 05 → 04. A reader who is reviewing a PR should read 03 first.
+A reader who wants the shortest path to understanding should read 01 → 03 → 05 → 07. A reader who is reviewing a PR should read 03 first.
