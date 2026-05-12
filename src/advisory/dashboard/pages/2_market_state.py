@@ -4,6 +4,10 @@ from __future__ import annotations
 import numpy as np
 import streamlit as st
 
+from config.settings import settings
+from src.advisory.dashboard.components.survivorship_panel import (
+    render_survivorship_panel_permanent,
+)
 from src.advisory.dashboard.components.unknowns_expander import (
     render_unknowns_section,
 )
@@ -30,6 +34,16 @@ def render() -> None:
     report = get_validation_report(conn, "layer1")
 
     st.title("Market State Engine")
+
+    if settings.app_mode == "v7_lite":
+        render_survivorship_panel_permanent(settings.survivorship_bias_estimate())
+        st.caption(
+            "V7_lite Feature Dimensions (9): trend · volatility · breadth · "
+            "liquidity · macro · correlation · options_proxy (VIX9D/1M/3M + "
+            "SKEW + P/C ratio) · sector_relative_return_252d · fundamental "
+            "(placeholder).  Missing in lite tier: PIT earnings revisions, "
+            "25-delta skew surface, gamma positioning."
+        )
 
     if report is not None:
         if report.status == "blocked":

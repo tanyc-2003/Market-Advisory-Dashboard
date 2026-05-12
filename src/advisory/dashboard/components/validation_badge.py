@@ -28,6 +28,9 @@ _BADGE_LABELS: dict[str, str] = {
     "research_preview": "Research preview",
     "blocked": "Blocked",
     "no_report": "No report",
+    # V7_lite additions
+    "lite_survivorship": "V7_lite validated",
+    "validation_paused_data_integrity": "Validation paused — Data integrity",
 }
 
 _BADGE_EMOJIS: dict[str, str] = {
@@ -35,6 +38,9 @@ _BADGE_EMOJIS: dict[str, str] = {
     "research_preview": "🟡",
     "blocked": "🔴",
     "no_report": "⚪",
+    # V7_lite additions
+    "lite_survivorship": "🟠",
+    "validation_paused_data_integrity": "⏸",
 }
 
 

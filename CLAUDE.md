@@ -1,15 +1,37 @@
 # CLAUDE.md — Advisory Dashboard
 
-## Architecture source
-Advisory_Dashboard_Architecture_v7.md (in `Claude code building guide/`)
+## Architecture sources
+- V7 Institutional: `Claude code building guide/Advisory_Dashboard_Architecture_v7.md`
+- V7_lite (Scanner+): `Claude code building guide/Advisory_Dashboard_Architecture_v7_lite.md`
 
 ## Implementation guide
 See `Claude code building guide/` — read files in numeric order.
+V7 phases: `00`-`08`.  V7_lite extension: `09`-`12`.
+
+## Mode switching
+Set `APP_MODE=v7_lite` in `.env` (default) for free data sources.
+Set `APP_MODE=v7_institutional` to restore the full layer set (requires
+Polygon + Sharadar keys; without them the system surfaces a
+**Developer Mode** banner and reads synthetic data).
 
 ## Core invariant
 Layer 0 gates every layer. No layer output is treated as evidence until
 its ValidationReport.production_ready == True. The `requires_production`
 decorator enforces this in code. Never bypass it.
+
+## V7_lite invariants — never violate these
+1. No V7 Institutional code is deleted. All lite-mode changes are additive.
+2. Every output affected by survivorship bias carries a disclosure. Silent
+   degradation is forbidden.
+3. `amihud_z` feeds Layer 5 stress detection; `cs_spread_execution_proxy`
+   feeds the realistic execution harness. Never substitute.
+4. `SURVIVORSHIP_WIN_RATE_ADJUSTMENT` does NOT exist. The correct fix is
+   binomial wipeout injection into ES_5.
+5. HY/IG OAS credit spreads are Layer 1 Macro features — never Layer 5
+   stress signals.
+6. FRED fetches in V7_lite use `fetch_fred_pit_safe()` with the vintage API.
+7. Layer 3 and Layer 4 are locked in V7_lite. They return
+   `{"status": "LOCKED"}` — they do not crash.
 
 ## Critical correctness properties
 1. T-1 lag: factor returns at date T use `knowledge_date < T`. The `.shift(1)`

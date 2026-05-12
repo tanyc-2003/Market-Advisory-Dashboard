@@ -3,11 +3,16 @@ from __future__ import annotations
 
 import streamlit as st
 
+from config.settings import settings
 from src.advisory.dashboard.components.disagreement_banner import (
     render_disagreement_banner,
 )
 from src.advisory.dashboard.components.distribution_chart import (
     render_analog_return_distribution,
+)
+from src.advisory.dashboard.components.lock_tile import render_layer_lock_tile
+from src.advisory.dashboard.components.survivorship_panel import (
+    render_survivorship_panel_permanent,
 )
 from src.advisory.dashboard.components.unknowns_expander import (
     render_unknowns_section,
@@ -34,6 +39,11 @@ def render() -> None:
     report = get_validation_report(conn, "layer2")
 
     st.title("Watchlist & Attribution")
+
+    # V7_lite mandatory survivorship disclosure at the top of every page
+    # that shows analog distributions.
+    if settings.app_mode == "v7_lite":
+        render_survivorship_panel_permanent(settings.survivorship_bias_estimate())
 
     if report is not None:
         if report.status == "blocked":
@@ -74,6 +84,18 @@ def render() -> None:
     note = getattr(analog, "note", "") or ""
     if note:
         render_disagreement_banner(overlap, note)
+
+    # Feature quality note (V7_lite — mentions earnings_revision_z absence)
+    fq = getattr(analog, "feature_quality_note", None)
+    if fq:
+        st.caption(fq)
+
+    st.divider()
+    st.subheader("Signal Attribution (Layer 3)")
+    if settings.app_mode == "v7_lite":
+        render_layer_lock_tile("layer3")
+    else:
+        st.info("Per-asset SHAP attribution renders here in V7 Institutional mode.")
 
     render_unknowns_section(getattr(analog, "unknowns", []))
 

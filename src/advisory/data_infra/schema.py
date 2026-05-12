@@ -117,6 +117,73 @@ PIT_QUERY = """
 """
 
 
+# ------------------------------------------------------------------ #
+# V7_lite extensions — additive only
+# ------------------------------------------------------------------ #
+
+HMM_MODEL_REGISTRY_DDL = """
+CREATE TABLE IF NOT EXISTS hmm_model_registry (
+    model_id               VARCHAR PRIMARY KEY,
+    app_mode               VARCHAR NOT NULL,
+    trained_at             TIMESTAMP NOT NULL,
+    training_window_start  DATE,
+    training_window_end    DATE,
+    n_dimensions           INTEGER,
+    k_selected             INTEGER,
+    oos_log_likelihood     DOUBLE,
+    validation_status      VARCHAR,
+    walk_forward_sharpe    DOUBLE,
+    deflated_sharpe        DOUBLE,
+    retired_at             TIMESTAMP,
+    retired_reason         VARCHAR,
+    artifact_path          VARCHAR
+);
+"""
+
+YFINANCE_FETCH_AUDIT_DDL = """
+CREATE SEQUENCE IF NOT EXISTS yfinance_fetch_id_seq START 1;
+CREATE TABLE IF NOT EXISTS yfinance_fetch_audit (
+    fetch_id       BIGINT PRIMARY KEY DEFAULT nextval('yfinance_fetch_id_seq'),
+    fetched_at     TIMESTAMP NOT NULL DEFAULT now(),
+    ticker         VARCHAR   NOT NULL,
+    fetch_date     DATE,
+    status         VARCHAR   NOT NULL,
+    n_rows         INTEGER,
+    n_bad_rows     INTEGER   DEFAULT 0,
+    n_consec_gaps  INTEGER   DEFAULT 0,
+    note           VARCHAR,
+    app_mode       VARCHAR   DEFAULT 'v7_lite'
+);
+"""
+
+CBOE_PC_RATIO_DDL = """
+CREATE TABLE IF NOT EXISTS cboe_pc_ratio (
+    pc_date  DATE    PRIMARY KEY,
+    ratio    DOUBLE  NOT NULL
+);
+"""
+
+
+def _add_app_mode_columns(conn: duckdb.DuckDBPyConnection) -> None:
+    """Add the V7_lite ``app_mode`` column to the three audit tables.
+
+    DuckDB doesn't support ``ALTER TABLE ... ADD COLUMN IF NOT EXISTS``
+    in every release, so we check the schema first and add the column
+    only if it's missing.
+    """
+    for table in ("backtest_executions", "paper_trade_performance", "llm_cache"):
+        rows = conn.execute(
+            f"PRAGMA table_info('{table}')"
+        ).fetchall()
+        if not rows:
+            continue  # table not yet created
+        columns = {r[1] for r in rows}
+        if "app_mode" not in columns:
+            conn.execute(
+                f"ALTER TABLE {table} ADD COLUMN app_mode VARCHAR DEFAULT 'v7_institutional'"
+            )
+
+
 def bootstrap_schema(conn: duckdb.DuckDBPyConnection) -> None:
     """Create every table.  Safe to re-run on an existing database."""
     # Note: BACKTEST_EXEC_DDL contains a sequence + table; split & run each.
@@ -128,8 +195,13 @@ def bootstrap_schema(conn: duckdb.DuckDBPyConnection) -> None:
         VALIDATION_REPORTS_DDL,
         JOURNAL_ENTRIES_DDL,
         LLM_CACHE_DDL,
+        HMM_MODEL_REGISTRY_DDL,
+        YFINANCE_FETCH_AUDIT_DDL,
+        CBOE_PC_RATIO_DDL,
     ):
         for statement in ddl.strip().split(";"):
             stmt = statement.strip()
             if stmt:
                 conn.execute(stmt)
+    # Apply the app_mode column to the V7-era audit tables.
+    _add_app_mode_columns(conn)

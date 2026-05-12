@@ -1,0 +1,42 @@
+# V7_lite 9-dimensional HMM feature specification.
+#
+# Each dimension may include multiple raw features; sub-features are
+# averaged into one scalar per dimension before the HMM sees them.  The
+# HMM always sees a 9-dimensional vector.
+
+dimensions:
+  trend:
+    - ret_1d
+    - ret_5d
+    - ret_21d
+    - ma_spread_50_200d
+  volatility:
+    - realized_vol_21d
+    - atr_pct_21d
+  breadth:
+    - pct_above_ma20
+    - pct_above_ma50
+  liquidity:
+    - volume_norm_21d
+  macro:
+    - treasury_10yr_roc_21d
+    - yield_curve_slope
+    - hy_oas         # FRED BAMLH0A0HYM2OAS — Layer 1 Macro, NOT Layer 5
+    - ig_oas         # FRED BAMLC0A0CM     — Layer 1 Macro, NOT Layer 5
+  correlation:
+    - rolling_sector_correlation_63d
+  options_proxy:
+    - vix_9d
+    - vix_1m
+    - vix_3m
+    - vix_term_slope    # derived: vix_3m - vix_1m
+    - skew_index
+    - put_call_ratio
+  sector_relative_return:
+    - sector_relative_ret_252d
+  fundamental:
+    # In v7_lite, the only fundamental proxy is sector_relative_ret_252d;
+    # the dedicated fundamental dimension is populated by Layer 3+4 in
+    # institutional mode.  Lite mode leaves this dimension at the
+    # winsorised median of the trend block as a placeholder.
+    - placeholder_fundamental_proxy

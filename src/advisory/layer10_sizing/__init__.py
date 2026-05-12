@@ -12,11 +12,14 @@ from .diagnostics import (
     SIZING_NOTE,
     sizing_diagnostics,
 )
+from .lite_diagnostics import inject_synthetic_wipeouts, sizing_diagnostics_lite
 
 __all__ = [
     "ES_QUANTILE",
     "KELLY_ABSOLUTE_CAP",
     "KELLY_LOW_SAMPLE_THRESHOLD",
     "SIZING_NOTE",
+    "inject_synthetic_wipeouts",
     "sizing_diagnostics",
+    "sizing_diagnostics_lite",
 ]

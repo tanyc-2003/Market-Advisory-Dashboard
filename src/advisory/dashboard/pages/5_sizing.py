@@ -4,6 +4,10 @@ from __future__ import annotations
 import numpy as np
 import streamlit as st
 
+from config.settings import settings
+from src.advisory.dashboard.components.survivorship_panel import (
+    render_survivorship_panel_permanent,
+)
 from src.advisory.dashboard.components.unknowns_expander import (
     render_unknowns_section,
 )
@@ -23,6 +27,7 @@ from src.advisory.layer10_sizing.diagnostics import (
     SIZING_NOTE,
     sizing_diagnostics,
 )
+from src.advisory.layer10_sizing.lite_diagnostics import sizing_diagnostics_lite
 
 
 st.set_page_config(page_title="Sizing", layout="wide")
@@ -36,6 +41,9 @@ def render() -> None:
     st.title("Position Sizing Diagnostics")
     st.metric("Absolute Kelly cap", f"{KELLY_ABSOLUTE_CAP:.0%}")
     st.caption(SIZING_NOTE)
+
+    if settings.app_mode == "v7_lite":
+        render_survivorship_panel_permanent(settings.survivorship_bias_estimate())
 
     if report is not None:
         if report.status == "blocked":
@@ -59,11 +67,22 @@ def render() -> None:
     state_uncertainty = float(getattr(state, "state_uncertainty", 0.0))
     overlap = float(getattr(analog, "overlap_pct", 1.0))
 
-    result = sizing_diagnostics(
-        analog_returns=returns,
-        state_uncertainty=state_uncertainty,
-        hmm_analog_overlap_pct=overlap,
-    )
+    # V7_lite uses the wipeout-injection wrapper; institutional uses the
+    # canonical diagnostic.  The wrapper just augments the analog pool
+    # before calling sizing_diagnostics(), so the architectural Kelly
+    # invariants are preserved automatically.
+    if settings.app_mode == "v7_lite":
+        result = sizing_diagnostics_lite(
+            analog_returns=returns,
+            state_uncertainty=state_uncertainty,
+            hmm_analog_overlap_pct=overlap,
+        )
+    else:
+        result = sizing_diagnostics(
+            analog_returns=returns,
+            state_uncertainty=state_uncertainty,
+            hmm_analog_overlap_pct=overlap,
+        )
 
     if result.get("status") == "INSUFFICIENT_ANALOGS":
         st.error(
@@ -82,6 +101,16 @@ def render() -> None:
             f"Sample fragile: {result['n']} analogs is below "
             f"{KELLY_LOW_SAMPLE_THRESHOLD}.  Treat magnitudes with scepticism."
         )
+
+    # V7_lite — wipeout injection disclosure
+    if settings.app_mode == "v7_lite" and "n_injected" in result:
+        st.metric(
+            "Synthetic wipeouts added (Binomial draw)",
+            int(result["n_injected"]),
+        )
+        bias_note = result.get("survivorship_bias_note")
+        if bias_note:
+            st.warning(bias_note)
 
     with st.expander("Inputs to Kelly"):
         st.json(

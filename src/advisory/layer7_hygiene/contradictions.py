@@ -32,6 +32,34 @@ CONTRADICTION_LABEL: str = (
 )
 
 
+# V7_lite status taxonomy.  Each contradiction pair carries one of
+# these status strings; the dashboard surfaces the matching message.
+CONTRADICTION_STATUS: dict[str, str] = {
+    "VALIDATED": (
+        "Statistical test passed BY-FDR gate (developer-specified pair, "
+        "empirically confirmed). Treat as a data-validated contradiction."
+    ),
+    "HEURISTIC": (
+        "Heuristic rule — not system-derived. Apply additional caution."
+    ),
+    "UNTESTABLE_LITE": (
+        "Feature unavailable in V7_lite (requires Sharadar PIT data). "
+        "This pair cannot be tested in the current data environment. "
+        "It may be a real contradiction — it cannot be confirmed or denied."
+    ),
+    "INSUFFICIENT_DATA": (
+        "Cell count below minimum threshold on available features."
+    ),
+}
+
+# Features absent from the V7_lite data tier — any contradiction pair
+# referencing one of these is marked UNTESTABLE_LITE instead of being
+# silently dropped.
+LITE_NULL_FEATURES: frozenset[str] = frozenset(
+    {"earnings_revision_z", "analyst_upgrade_z"}
+)
+
+
 DEFAULT_SIGNIFICANCE: float = 0.01  # tighter than 0.05 because pairs are pre-specified
 MIN_N_EACH_CELL: int = 20
 
@@ -48,12 +76,22 @@ def find_validated_contradictions(
     pairs: list[tuple[str, str]] | None = None,
     significance: float = DEFAULT_SIGNIFICANCE,
     min_n_each_cell: int = MIN_N_EACH_CELL,
+    app_mode: str = "v7_institutional",
 ) -> list[dict[str, Any]]:
     """For each developer-specified pair, test whether the joint-high regime
     has a materially different hit rate from the joint-low regime.
+
+    In ``app_mode == "v7_lite"``, any pair containing a feature from
+    :data:`LITE_NULL_FEATURES` is emitted with status ``UNTESTABLE_LITE``
+    rather than being silently dropped — architectural invariant.
     """
     pairs = pairs or CONTRADICTION_PAIRS
     if forward_return_col not in feature_history.columns:
+        # Even when the forward-return column is missing, lite mode still
+        # surfaces the untestable pairs.  Institutional silently returns
+        # empty (legacy contract).
+        if app_mode == "v7_lite":
+            return _untestable_lite_rows(pairs)
         return []
 
     fwd = feature_history[forward_return_col].to_numpy()
@@ -61,6 +99,11 @@ def find_validated_contradictions(
 
     results: list[dict[str, Any]] = []
     for feat_a, feat_b in pairs:
+        if app_mode == "v7_lite" and (
+            feat_a in LITE_NULL_FEATURES or feat_b in LITE_NULL_FEATURES
+        ):
+            results.append(_untestable_lite_row(feat_a, feat_b))
+            continue
         if feat_a not in feature_history.columns or feat_b not in feature_history.columns:
             logger.debug("contradiction_pair_skipped_missing_column", a=feat_a, b=feat_b)
             continue
@@ -109,3 +152,22 @@ def find_validated_contradictions(
             }
         )
     return results
+
+
+def _untestable_lite_row(feature_a: str, feature_b: str) -> dict[str, Any]:
+    return {
+        "feature_a": feature_a,
+        "feature_b": feature_b,
+        "label": "untestable in V7_lite",
+        "status": "UNTESTABLE_LITE",
+        "message": CONTRADICTION_STATUS["UNTESTABLE_LITE"],
+        "alert_type": "contradiction",
+    }
+
+
+def _untestable_lite_rows(pairs: list[tuple[str, str]]) -> list[dict[str, Any]]:
+    return [
+        _untestable_lite_row(a, b)
+        for a, b in pairs
+        if a in LITE_NULL_FEATURES or b in LITE_NULL_FEATURES
+    ]

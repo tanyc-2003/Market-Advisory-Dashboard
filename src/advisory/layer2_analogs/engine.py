@@ -57,6 +57,16 @@ class DisagreementResult:
     global_set: AnalogResult
     within_state_set: AnalogResult
     note: str
+    feature_quality_note: str | None = None
+    """V7_lite disclosure populated when ``app_mode == 'v7_lite'``."""
+
+
+# V7_lite-specific features that are absent on yfinance.  Reported in
+# the feature_quality_note so the trader knows the analog engine ran
+# without these inputs.
+LITE_MISSING_FEATURES: frozenset[str] = frozenset(
+    {"earnings_revision_z", "analyst_upgrade_z"}
+)
 
 
 @dataclass
@@ -67,6 +77,8 @@ class HistoricalAnalogEngine:
     When provided, ``find_analogs`` reads ``friction_monitor.get_vol_z(ticker)``
     as the ``vol_z`` trigger for covariance cache invalidation.
     """
+    app_mode: str = "v7_institutional"
+    """V7_lite mode triggers the feature quality note on every disagreement output."""
     cov_cache: dict = field(default_factory=dict, init=False, repr=False)
 
     def _fit_shrinkage_covariance(
@@ -248,9 +260,18 @@ class HistoricalAnalogEngine:
         overlap_pct = (
             len(global_dates & within_dates) / len(union) if union else 0.0
         )
+        feature_quality_note: str | None = None
+        if self.app_mode == "v7_lite":
+            feature_quality_note = (
+                "V7_lite analog match ran without "
+                f"{sorted(LITE_MISSING_FEATURES)} — these features require "
+                "PIT fundamental data (Sharadar).  Distances are computed "
+                "over the remaining available features only."
+            )
         return DisagreementResult(
             overlap_pct=overlap_pct,
             global_set=global_set,
             within_state_set=within_state_set,
             note=DISAGREEMENT_NOTE if overlap_pct < 0.5 else "",
+            feature_quality_note=feature_quality_note,
         )
