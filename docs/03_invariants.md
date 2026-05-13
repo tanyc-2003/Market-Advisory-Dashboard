@@ -2,6 +2,8 @@
 
 Seven invariants are enforced *in code*, not in docs. If any of them gets violated, the failure is loud — either an `AssertionError`, a typed exception, or a test failure. None are settings to be tuned per-deployment.
 
+> **V7_lite adds eight more invariants** (additive-only, lock guards on Layers 3/4, survivorship disclosure, Amihud-vs-Corwin-Schultz separation, binomial wipeout injection). See [09_v7_lite.md](09_v7_lite.md).
+
 ---
 
 ## 1. T-1 lag on factor regressions

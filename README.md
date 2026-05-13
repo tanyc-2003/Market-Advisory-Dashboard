@@ -2,46 +2,22 @@
 
 A statistically-disciplined market-intelligence system for a single trader.
 
-The architecture rests on one rule: **no layer output is treated as evidence until Layer 0 has signed it off**. Everything else — historical analogs, regime detection, factor risk, position sizing — is wrapped in that gate. The system is built to make over-confidence harder, not to make trading decisions.
+## What this is
+
+A local-first dashboard that turns market data into *honest evidence about evidence*.  You point it at a universe of tickers; it tells you:
+
+- **Where the market is now** — regime detection via a Winsorised Hidden Markov Model + a transition-signal banner when the model is uncertain.
+- **What history says** — a Mahalanobis historical-analog engine that surfaces the top-K most similar past states, their forward-return distribution, and their hit rate.
+- **What's driving each name** — interventional SHAP attribution per asset, with the background dataset's vintage date displayed alongside.
+- **What you'd be adding** — pre-trade portfolio impact preview, two-regime covariance, named stress scenarios, and correlation clustering.
+- **What you're calibrated for** — a journal-fed reliability diagram with Brier score, ECE, and a thesis-drift detector.
+- **What you'd size into** — tail-aware Kelly diagnostics with a 20% absolute cap, regime-uncertainty haircut, and explicit fragility warnings.
+
+Every output is wrapped in one rule: **no layer's result is treated as evidence until Layer 0 has signed it off.**  The dashboard refuses to render layer outputs without a passing `ValidationReport` — a positive walk-forward Sharpe alone isn't enough; the Deflated Sharpe Ratio applies a trial-count penalty drawn from a monotonic DuckDB audit log so nobody can pretend they ran fewer experiments than they did.
 
 > **What this system does NOT do.** Execute trades. Recommend specific position sizes. Generate deterministic buy/sell signals. Claim predictive certainty. Treat unvalidated outputs as evidence. These restrictions are architectural, not cultural.
 
----
-
-## Status
-
-| Phase | Layer | Status |
-|---|---|---|
-| 0a | Survivorship audit | OK |
-| 0b | Audit log + backtest counter | OK |
-| 0c | Validation substrate (CPCV, WF, DSR, ContinuousValidator) | OK |
-| 0d | Paper-trading harness | OK |
-| 1 | Bitemporal data infrastructure | OK |
-| 2 | Market State Engine (Winsorised HMM) | OK |
-| 3 | Historical Analog Engine | OK |
-| 4 | Signal Attribution (interventional SHAP) | OK |
-| 5 | Hybrid Risk Model (factors + residual PCA) | OK |
-| 6 | Portfolio Diagnostics | OK |
-| 7 | Market Stress Monitor | OK |
-| 8 | Decision Hygiene (contradictions, FDR, confidence, unknowns) | OK |
-| 9 | Trader Journal | OK |
-| 10 | Trader Calibration System | OK |
-| 11 | Position Sizing Diagnostics | OK |
-| 12 | Streamlit Dashboard | OK |
-| 13 | LLM Interpretation (optional) | OK |
-| **V7_lite** | Scanner+ extension (free-data tier) | **OK** |
-
-Tests: **280 passing** under Python 3.14 (205 V7 Institutional + 75 V7_lite).
-
-## Modes
-
-| Mode | Data | Layers active | Notes |
-|---|---|---|---|
-| `APP_MODE=v7_lite` (default) | yfinance · FRED · CBOE (free) | All except Layers 3 + 4 | Survivorship bias disclosed on every page that shows analog distributions |
-| `APP_MODE=v7_institutional` (with paid keys) | Polygon · Sharadar · FRED · CBOE | All | Full layer set; no bias panels |
-| `APP_MODE=v7_institutional` (no keys) | **Synthetic only** | All | "Developer Mode" red banner; for exercising the dashboard without subscriptions |
-
-Switch modes by setting `APP_MODE` in `.env` and restarting Streamlit.
+The system is designed to make over-confidence harder — not to make trading decisions.
 
 ---
 
@@ -54,6 +30,9 @@ py -3.14 -m venv .venv
 
 pip install -e ".[dev]"
 
+# Optional: copy the example .env and edit it
+cp .env.example .env
+
 python scripts/bootstrap_db.py        # creates main.duckdb + audit.duckdb
 
 # Pick ONE of the two data paths:
@@ -61,34 +40,137 @@ python scripts/seed_synthetic_data.py  # deterministic synthetic universe (no ne
 # - OR -
 python scripts/ingest_real_data.py     # real OHLCV (yfinance) + macro (FRED) - no API key
 
-python scripts/run_validation.py       # populate validation_reports (required before dashboard is useful)
+python scripts/run_validation.py       # populate validation_reports (required before dashboard renders)
 
-pytest tests/ -v                       # 205 passing
-
-# Run the dashboard (Phase 12)
+# Run the dashboard
 streamlit run src/advisory/dashboard/app.py
 ```
 
-> **Why `run_validation.py` is required.** The dashboard reads pre-computed `ValidationReport`s from the `validation_reports` table and refuses to display layer outputs without one — every layer shows `no_report` until you populate it. This is the architectural default: nothing is treated as evidence until Layer 0 has signed it off. Run `python scripts/run_validation.py` after the data step to perform the sign-off pass.
+Open `http://localhost:8501`.  The first page is **Validation** — every other page is gated on the sign-off shown there.
 
-`scripts/seed_synthetic_data.py` is deterministic (seed = 42) and writes both 100 live tickers and 20 synthetic delisted tickers so the survivorship audit can pass on day one.
+> **Why `run_validation.py` is required.** The dashboard reads pre-computed `ValidationReport`s from the `validation_reports` table and refuses to display layer outputs without one — every layer shows `no_report` until you populate it. This is the architectural default: nothing is treated as evidence until Layer 0 has signed it off.
 
-## Real market data
+---
 
-`scripts/ingest_real_data.py` is the day-one path to running the system on real prices:
+## Configuration
+
+All knobs flow through `.env` (copy from `.env.example`).  The system reads them through a single `pydantic-settings` object in [`config/settings.py`](config/settings.py), so changing a value in `.env` and restarting Streamlit is enough to pick it up — no code edit needed.
+
+### Mode selection
+
+| Env var | Values | Default | What it does |
+|---|---|---|---|
+| `APP_MODE` | `v7_lite` · `v7_institutional` | `v7_lite` | Picks the data tier and which layers are active. |
+
+The three operating modes:
+
+| Mode | Data | Layers active | UI |
+|---|---|---|---|
+| `APP_MODE=v7_lite` | yfinance · FRED · CBOE *(all free, no key)* | All except Layers 3 + 4 | Survivorship-bias panel on every analog-distribution page; locked tiles for Layers 3 + 4 |
+| `APP_MODE=v7_institutional` with paid keys | Polygon · Sharadar · FRED · CBOE | All | Full layer set; no bias panels |
+| `APP_MODE=v7_institutional` without paid keys | Synthetic only | All | Red **Developer Mode** banner; exercisable without subscriptions |
+
+Restart Streamlit after changing the mode.
+
+### Data sources & API keys
+
+All paid keys are optional — leave them blank to stay in lite / developer mode.
+
+| Env var | When you need it |
+|---|---|
+| `POLYGON_API_KEY` | V7 Institutional OHLCV + 1-min bars + delisted ticker history. |
+| `SHARADAR_API_KEY` | V7 Institutional fundamentals (earnings revisions, analyst surprise, etc.). |
+| `FRED_API_KEY` | Optional; the free CSV endpoint is used by default. Set this if you want to switch to the rate-limited authenticated API. |
+
+### Database paths
+
+| Env var | Default | Purpose |
+|---|---|---|
+| `MAIN_DB_PATH` | `data/db/main.duckdb` | Feature store, journal, validation reports, LLM cache. |
+| `AUDIT_DB_PATH` | `data/db/audit.duckdb` | Monotonic backtest-execution counter (powers the Deflated Sharpe trial floor). |
+| `CACHE_DIR` | `data/cache/features` | Parquet snapshot cache. |
+
+### Validation thresholds
+
+These define the Layer 0 sign-off gate.  Defaults are architecture-pinned; lower them only with a clear reason.
+
+| Env var | Default | Meaning |
+|---|---|---|
+| `WF_SHARPE_FLOOR` | `0.5` | Walk-forward Sharpe must clear this to pass. |
+| `WF_ECE_CEILING` | `0.05` | Walk-forward Expected Calibration Error must be ≤ this. |
+| `CPCV_P30_FLOOR` | `0.0` | 30th-percentile CPCV Sharpe must clear this (worst-path bar). |
+| `DSR_FLOOR` | `0.95` | Deflated Sharpe Ratio must clear this for `production` status. |
+| `STATIC_TRIAL_FLOOR` | `2000` | `n_trials = max(audit_count, this)` — caller cannot understate it. |
+| `DIVERGENCE_THRESHOLD` | `0.30` | V7 Institutional paper-trade vs backtest Sharpe divergence threshold. |
+| `DIVERGENCE_THRESHOLD_LITE` | `0.40` | V7_lite version (more permissive given noisier data). |
+| `MAX_MISSING_BAR_FRACTION` | `0.02` | Lite mode pauses validation if missing-bar fraction exceeds this. |
+| `MAX_STALE_CROSS_TICKER_FRACTION` | `0.20` | Lite mode pauses validation if cross-ticker staleness exceeds this. |
+
+### Feature engineering
+
+| Env var | Default | Purpose |
+|---|---|---|
+| `UNIVERSE_SIZE` | `100` | Default ticker count for the synthetic seed. |
+| `EWMA_CLIP` | `4.0` | Winsorisation σ-cap shared between the EWMA normaliser and the HMM. |
+
+### Sizing diagnostics
+
+| Env var | Default | Purpose |
+|---|---|---|
+| `KELLY_ABSOLUTE_CAP` | `0.20` | Hard cap on every Kelly variant returned by `sizing_diagnostics`. **Invariant**: outputs never exceed this. |
+| `ANNUAL_IMPAIRMENT_RATE` | `0.02` | V7_lite — probability per analog of a synthetic wipeout draw. |
+| `SYNTHETIC_WIPEOUT_RETURN` | `-0.60` | V7_lite — magnitude of an injected wipeout return. |
+
+### Optional LLM
+
+The LLM page (Page 8) is hidden unless explicitly enabled.
+
+| Env var | Default | Purpose |
+|---|---|---|
+| `LLM_ENABLED` | `false` | Toggle the optional LLM interpretation page. |
+| `LLM_MODEL` | `llama3` | Local Ollama model name. |
+| `OLLAMA_BASE_URL` | `http://localhost:11434` | Where to reach Ollama. |
+
+### Typical operator workflows
+
+```bash
+# Run lite with free data (default — no .env edit needed)
+python scripts/ingest_real_data.py
+python scripts/run_validation.py
+streamlit run src/advisory/dashboard/app.py
+```
+
+```bash
+# Run institutional with synthetic data (Developer Mode — no API keys)
+echo "APP_MODE=v7_institutional" >> .env
+python scripts/seed_synthetic_data.py
+python scripts/run_validation.py
+streamlit run src/advisory/dashboard/app.py
+```
+
+```bash
+# Run institutional with live paid data
+echo "APP_MODE=v7_institutional" >> .env
+echo "POLYGON_API_KEY=..." >> .env
+echo "SHARADAR_API_KEY=..." >> .env
+# Production ingest script goes here (paid integration is documented in
+# src/advisory/data_infra/ingestion.py)
+python scripts/run_validation.py
+streamlit run src/advisory/dashboard/app.py
+```
+
+### Real-data quick reference
+
+`scripts/ingest_real_data.py` runs against free sources:
 
 | Source | What | Cost |
 |---|---|---|
 | Yahoo Finance (via `yfinance`) | Daily OHLCV + VIX index | free, no key |
 | FRED | Treasury rates (DGS10, DGS2) + ICE BofA HY OAS | free, no key (public CSV endpoint) |
 
-Default universe is the 10 macro factor proxies from the architecture (SPY, TLT, HYG, QQQ, IWD, IWM, UUP, DBC, SVXY, SMH) plus a handful of mega-caps (AAPL, MSFT, NVDA, GOOGL, AMZN). Override with `--tickers`, `--start`, `--end`. Default lookback is 10 years.
+Default universe is the 10 macro factor proxies from the architecture (SPY, TLT, HYG, QQQ, IWD, IWM, UUP, DBC, SVXY, SMH) plus a handful of mega-caps (AAPL, MSFT, NVDA, GOOGL, AMZN).  Override with `--tickers`, `--start`, `--end`.  Default lookback is 10 years.
 
-By default the script wipes synthetic feature rows (`source = 'synthetic'`) and synthetic delisted entries (`DEL###`) so the validation pipeline averages over real data only. Use `--keep-synthetic-features` or `--keep-synthetic-delisted` to retain them side-by-side.
-
-**A note on survivorship**: free data sources don't provide a clean delisted-tickers feed. Without one, the survivorship audit cannot run against real data, and Layer 0 falls back to `research_preview` for predictive layers (the architecturally correct degradation — the system refuses to claim production sign-off on a universe it can't audit). To get to `production` on real data you'd need either a paid Polygon delisted endpoint, a Sharadar subscription, or to manually populate `delisted_tickers` with a curated list of known historical delistings.
-
-For production-grade fundamentals (earnings revisions, analyst surprise, etc.) you'd plug in Polygon/Sharadar API keys via `.env` — the stub connectors in [src/advisory/data_infra/ingestion.py](src/advisory/data_infra/ingestion.py) document that integration point.
+**Note on survivorship**: free data sources don't provide a clean delisted-tickers feed.  Without one, the survivorship audit cannot run against real data, and Layer 0 falls back to `research_preview` — the architecturally correct degradation.  Production sign-off needs either a paid Polygon delisted endpoint, a Sharadar subscription, or a manually-curated `delisted_tickers` table.
 
 ---
 
@@ -98,42 +180,39 @@ For production-grade fundamentals (earnings revisions, analyst surprise, etc.) y
 src/advisory/
   layer0_validation/    # survivorship - audit log - CPCV - WF - DSR - ValidationReport
   data_infra/           # schema - feature_store - ingestion - lag
+                        # + yfinance, FRED PIT-safe, CBOE adapters
+                        # + 9-dim feature pipeline (feature_pipeline_lite.py)
   layer1_market_state/  # Winsorised HMM - K-selector - dimensionality
+                        # + model registry (V7_lite: registry.py)
   layer2_analogs/       # Mahalanobis analog engine - conditional expectancy
+                        # V7_lite: feature_quality_note in DisagreementResult
   layer3_attribution/   # interventional TreeExplainer - factor redundancy
-  layer4_risk/          # factor orthogonalisation - EW-OLS - ridge - tail betas - residual PCA
+                        # V7_lite: returns {"status": "LOCKED"}
+  layer4_risk/          # factor orthogonalisation - EW-OLS - ridge - tail betas
+                        # V7_lite: returns {"status": "LOCKED"}
   layer5_stress/        # economic calendar - IntradayFrictionMonitor
-                        # V7_lite: lite_monitor.py adds LiteFrictionMonitor
-                        #          (Amihud + Corwin-Schultz, strict separation)
+                        # V7_lite: LiteFrictionMonitor (Amihud + Corwin-Schultz)
   layer6_portfolio/     # position impact preview - two-regime covariance - clustering
-  layer7_hygiene/       # validated contradictions - FDR (BY) - confidence language - unknowns
-                        # V7_lite: UNTESTABLE_LITE_MODE branch on contradictions
+  layer7_hygiene/       # validated contradictions - FDR (BY) - confidence - unknowns
+                        # V7_lite: UNTESTABLE_LITE branch on contradictions
   layer8_journal/       # JournalEntry - JournalStore (DuckDB CRUD)
-  layer9_calibration/   # TraderCalibrationSystem (reliability - Brier - ECE - Wilson - thesis-drift)
+  layer9_calibration/   # TraderCalibrationSystem (reliability, Brier, ECE, Wilson)
   layer10_sizing/       # tail-aware Kelly - regime haircut - 20% absolute cap
                         # V7_lite: lite_diagnostics.py adds binomial wipeout injection
   layer_llm/            # optional, off-path: LLMContextPacket + CachedLLMInterface
   dashboard/            # Streamlit entry, state helpers, components, 8 pages
-                        # V7_lite: mode indicator, survivorship panel,
-                        #          locked tiles, dev-mode banner
+                        # V7_lite: mode indicator, survivorship panel, locked tiles
   paper_trading/        # RealisticExecutionHarness
                         # V7_lite: CS-spread / amihud_z separation assertion
-data_infra/             # Adapters (yfinance, FRED PIT-safe, CBOE),
-                        # 9-dim feature pipeline (feature_pipeline_lite.py),
-                        # sector_map loader, audit schema
 
-config/
-  settings.py           # pydantic-settings: paths, validation thresholds, EWMA clip
-
-scripts/
-  bootstrap_db.py
-  seed_synthetic_data.py
-
-tests/                  # 151 tests across unit + integration
-docs/                   # full architecture & usage docs (see docs/01_overview.md)
+config/                 # settings.py + sector_map.yaml + lite_feature_set_9dim.yaml
+scripts/                # bootstrap_db, seed_synthetic_data, ingest_real_data,
+                        # run_validation, train_hmm, validate_hmm_candidate
+tests/                  # 280 passing tests (205 V7 + 75 V7_lite)
+docs/                   # full architecture & usage docs
 ```
 
-The phase numbering in `Claude code building guide/` is used in commits and tests; the package directory names follow the *layer* numbering from `Advisory_Dashboard_Architecture_v7.md`. Phases 6/7 swap so Layer 5's `vol_z` feeds Layer 2 as a plain float rather than a circular import.
+The phase numbering in `Claude code building guide/` is used in commits and tests; the package directory names follow the *layer* numbering from `Advisory_Dashboard_Architecture_v7.md`.  Phases 6/7 swap so Layer 5's `vol_z` feeds Layer 2 as a plain float rather than a circular import.
 
 ---
 
@@ -149,23 +228,26 @@ The full per-layer documentation lives in [`docs/`](docs/):
 - [docs/06_developing.md](docs/06_developing.md) — adding a new layer / extending an existing one
 - [docs/07_dashboard.md](docs/07_dashboard.md) — Streamlit pages, sign-off gate behaviour, components
 - [docs/08_llm.md](docs/08_llm.md) — optional LLM interpretation layer
+- [docs/09_v7_lite.md](docs/09_v7_lite.md) — V7_lite (Scanner+) extension and operating modes
 
-For background reading, the architecture source-of-truth is `Claude code building guide/Advisory_Dashboard_Architecture_v7.md`. The phase-by-phase build guides are in the same folder.
+For background reading, the architecture source-of-truth is `Claude code building guide/Advisory_Dashboard_Architecture_v7.md` (and `_v7_lite.md` for the extension).  The phase-by-phase build guides are in the same folder.
 
 ---
 
 ## The seven architectural invariants (enforced in code)
 
-1. **T-1 lag** — `FundamentalRiskModel._aligned_lagged_inputs` asserts the lagged factor frame equals `factor_returns.shift(1)`. Removing the shift fires `AssertionError` immediately.
+1. **T-1 lag** — `FundamentalRiskModel._aligned_lagged_inputs` asserts the lagged factor frame equals `factor_returns.shift(1)`.  Removing the shift fires `AssertionError` immediately.
 2. **Winsorisation parity** — `EWMA_CLIP` (default 4.0) is read from `config/settings.py` by both the normaliser and the HMM `winsorize` step.
 3. **Interventional SHAP** — `SignalAttributionLayer` constructor raises `ConfigurationError` rather than fall back to path-dependent mode.
-4. **FDR method** — `apply_fdr_correction` calls `multipletests(..., method="fdr_by")`. A unit test mocks the call and asserts the kwarg.
+4. **FDR method** — `apply_fdr_correction` calls `multipletests(..., method="fdr_by")`.  A unit test mocks the call and asserts the kwarg.
 5. **Audit floor** — `deflated_sharpe` reads `audit_log.trial_count()` internally; `n_trials = max(audit_count, 2000)` cannot be understated by the caller.
 6. **Kelly cap** — `KELLY_ABSOLUTE_CAP = 0.20` clamps every Kelly variant returned by `sizing_diagnostics`.
-7. **Adverse fill** — `RealisticExecutionHarness.simulate_fill` asserts buy fills >= ask and sell fills <= bid before returning. Midpoint fills are impossible by construction.
+7. **Adverse fill** — `RealisticExecutionHarness.simulate_fill` asserts buy fills ≥ ask and sell fills ≤ bid before returning.  Midpoint fills are impossible by construction.
+
+V7_lite adds eight more invariants — see [docs/09_v7_lite.md](docs/09_v7_lite.md).
 
 ---
 
 ## Acknowledgements
 
-The architecture is described in `Claude code building guide/Advisory_Dashboard_Architecture_v7.md` and the phase-by-phase plan is split across the numbered files in the same directory. Both are the source of truth for any disagreement between docs and code.
+The architecture is described in `Claude code building guide/Advisory_Dashboard_Architecture_v7.md` and the phase-by-phase plan is split across the numbered files in the same directory.  Both are the source of truth for any disagreement between docs and code.
