@@ -2,7 +2,7 @@
 
 Per-layer documentation for the Market Advisory Dashboard.
 
-The architecture source-of-truth is `../Claude code building guide/Advisory_Dashboard_Architecture_v7.md`. These docs translate it into developer-facing reference material and walk through how the code enforces each invariant.
+The architecture source-of-truth is `../Claude code building guide/Advisory_Dashboard_Architecture_v7.md` (and `_v7_lite.md` for the extension). These docs translate them into developer-facing reference material and walk through how the code enforces each invariant.
 
 | File | Audience | What it covers |
 |---|---|---|
@@ -14,5 +14,6 @@ The architecture source-of-truth is `../Claude code building guide/Advisory_Dash
 | [06_developing.md](06_developing.md) | implementer | house style, adding a layer/feature, common pitfalls |
 | [07_dashboard.md](07_dashboard.md) | operator / trader | Streamlit pages, sign-off gate behaviour, session state, components |
 | [08_llm.md](08_llm.md) | operator | optional LLM layer — what it can/cannot do, enabling it, cache + TTL |
+| [09_v7_lite.md](09_v7_lite.md) | operator / reviewer | V7_lite (Scanner+) extension — the three modes, eight new invariants, locked layers |
 
-A reader who wants the shortest path to understanding should read 01 → 03 → 05 → 07. A reader who is reviewing a PR should read 03 first.
+A reader who wants the shortest path to understanding should read 01 → 03 → 05 → 07. A reader who is reviewing a PR should read 03 + 09 first. An operator picking the free vs paid data tier should jump straight to 09.
