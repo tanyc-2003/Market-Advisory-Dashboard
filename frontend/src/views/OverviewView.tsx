@@ -433,7 +433,7 @@ function Watchlist({
           Research preview — not validated for live decision support.
         </span>
         <span style={{ font: `400 11px/1.4 ${fonts.sans}`, color: colors.amberText2 }}>
-          Analog engine deflated Sharpe 0.81 &lt; 0.95 floor.
+          Analog engine has not passed Layer 0 sign-off — distributions are descriptive, not validated signals.
         </span>
       </div>
 
