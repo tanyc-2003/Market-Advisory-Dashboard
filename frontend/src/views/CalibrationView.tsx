@@ -8,9 +8,19 @@ const cy = (p: number) => (260 - p * 260).toFixed(1)
 const rowCols = '90px 1fr 1fr 64px'
 
 export default function CalibrationView({ calibration }: { calibration: CalibrationData }) {
-  const { cards, rows, drift } = calibration
+  const { cards, rows, drift, driftDetected = true } = calibration
   const points = rows.map((r) => ({ cx: cx(r.implied), cy: cy(r.observed) }))
   const polyline = rows.map((r) => `${cx(r.implied)},${cy(r.observed)}`).join(' ')
+
+  const driftBanner = driftDetected
+    ? { box: amberBanner, icon: '▲', iconColor: colors.amber, title: 'Thesis drift detected', text: colors.amberText }
+    : {
+        box: { borderRadius: 8, background: 'rgba(95,191,127,0.08)', border: '1px solid rgba(95,191,127,0.26)' },
+        icon: '✓',
+        iconColor: colors.green,
+        title: 'No thesis drift',
+        text: colors.green,
+      }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
@@ -110,7 +120,7 @@ export default function CalibrationView({ calibration }: { calibration: Calibrat
           ))}
           <div
             style={{
-              ...amberBanner,
+              ...driftBanner.box,
               margin: '16px 22px',
               padding: '13px 15px',
               borderRadius: 8,
@@ -119,12 +129,10 @@ export default function CalibrationView({ calibration }: { calibration: Calibrat
               alignItems: 'flex-start',
             }}
           >
-            <span style={{ color: colors.amber, fontSize: 12 }}>▲</span>
+            <span style={{ color: driftBanner.iconColor, fontSize: 12 }}>{driftBanner.icon}</span>
             <div>
-              <div style={{ font: `600 12px/1.3 ${fonts.sans}`, color: colors.text }}>Thesis drift detected</div>
-              <div style={{ marginTop: 4, font: `400 11px/1.45 ${fonts.sans}`, color: colors.amberText }}>
-                {drift}
-              </div>
+              <div style={{ font: `600 12px/1.3 ${fonts.sans}`, color: colors.text }}>{driftBanner.title}</div>
+              <div style={{ marginTop: 4, font: `400 11px/1.45 ${fonts.sans}`, color: driftBanner.text }}>{drift}</div>
             </div>
           </div>
         </section>
