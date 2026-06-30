@@ -7,16 +7,28 @@ This is the successor UI to the Streamlit app under
 
 ## Prerequisites
 
-- **Node.js ≥ 18** and npm. (Node was not installed when this was scaffolded —
-  install it from <https://nodejs.org> first.)
+- **Node.js ≥ 18** and npm (frontend).
+- **Python ≥ 3.11** with the API extra installed (backend):
+  `pip install -e ".[api]"` from the repo root.
 
 ## Getting started
 
+Run the **backend API** and the **frontend** together (two terminals):
+
 ```bash
+# terminal 1 — API (repo root)
+pip install -e ".[api]"
+python scripts/run_api.py            # FastAPI on http://localhost:8000
+
+# terminal 2 — frontend
 cd frontend
 npm install
-npm run dev      # starts Vite on http://localhost:5173
+npm run dev                          # Vite on http://localhost:5173
 ```
+
+Vite proxies `/api/*` to the API (see `vite.config.ts`), so the dashboard loads
+its data from the backend with no CORS setup in dev. If the API isn't running,
+the app shows an error screen with a Retry button.
 
 Other scripts:
 
@@ -34,7 +46,8 @@ src/
   App.tsx             # layout shell + view state (which page is active)
   theme.ts            # design tokens (colours, fonts) + formatting helpers
   styles.ts           # shared, typed CSSProperties fragments
-  data.ts             # all domain data + types (the only place to swap for an API)
+  api.ts              # typed fetch client + payload types (GET /api/dashboard, POST /api/journal)
+  data.ts             # TypeScript shapes + UI copy (nav, header) — values come from the API
   components/
     Sidebar.tsx       # brand, nav, snapshot panel
     Header.tsx        # per-view header + production/preview gate pills
@@ -47,15 +60,27 @@ src/
     ValidationView.tsx  # Layer 0 sign-off table + survivorship / DSR summaries
 ```
 
-## Connecting to the backend (later)
+## Backend wiring
 
-Every view consumes **typed data** from `src/data.ts`, which currently holds the
-static mock values from the design. To go live, replace the exported constants
-with `fetch()` calls to a thin HTTP API over the existing Python service layer
-(`src/advisory/dashboard/services.py`) — the component code does not need to
-change. The shapes in `data.ts` (e.g. `Layer`, `Asset`, `CalRow`) map directly
-onto what `list_layer_status_rows`, the analog engine, and the journal store
-already return.
+The dashboard is wired to a FastAPI backend (`src/advisory/api/`). On load the
+app fetches `GET /api/dashboard` (one round trip) via the typed client in
+`src/api.ts`; the journal form posts to `POST /api/journal`, which persists the
+entry to DuckDB and returns the refreshed payload.
+
+What's genuinely live vs. representative:
+
+- **Live now:** run mode / settings, Kelly cap, survivorship coverage (computed
+  from seeded features), the DSR audit trial count, and the **trade journal**
+  (the Log-entry form writes to `journal_entries`; logging the first trade flips
+  the sidebar from "representative" to live).
+- **Representative (server-side, single source of truth in
+  `src/advisory/api/presentation.py`):** market state, analogs/watchlist,
+  sizing, calibration, portfolio/stress, alerts. Each can be swapped to live
+  compute one endpoint at a time without touching the frontend — the validation
+  gate already overlays any persisted `ValidationReport`s automatically.
+
+`src/data.ts` now holds only the TypeScript shapes (and UI copy); the values
+come from the API. To point at a non-default API, set `VITE_API_BASE`.
 
 ## Design fidelity notes
 

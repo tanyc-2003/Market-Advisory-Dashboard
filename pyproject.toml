@@ -36,6 +36,10 @@ llm = [
     "langchain-ollama>=0.1",
     "langchain>=0.2",
 ]
+api = [
+    "fastapi>=0.110",
+    "uvicorn[standard]>=0.29",
+]
 dev = [
     "pytest>=8.0",
     "pytest-cov>=5.0",

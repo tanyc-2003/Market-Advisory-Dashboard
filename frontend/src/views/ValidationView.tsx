@@ -1,7 +1,8 @@
 import type { CSSProperties } from 'react'
 import { colors, fonts, statusColor, statusText, num } from '../theme'
 import { card, cardFlush } from '../styles'
-import { layers, type Layer } from '../data'
+import type { Layer } from '../data'
+import type { ValidationSummary } from '../api'
 
 const cols = '48px 1fr 130px 110px 100px 100px'
 
@@ -44,7 +45,13 @@ function SummaryCard({ label, value, valueColor, note }: { label: string; value:
   )
 }
 
-export default function ValidationView() {
+export default function ValidationView({
+  layers,
+  validation,
+}: {
+  layers: Layer[]
+  validation: ValidationSummary
+}) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
       <section style={cardFlush}>
@@ -103,13 +110,13 @@ export default function ValidationView() {
       <div style={{ display: 'flex', gap: 18 }}>
         <SummaryCard
           label="Survivorship coverage"
-          value="0.971"
+          value={validation.survivorshipCoverage}
           valueColor={colors.green}
           note="Above 0.95 target. Delisted-ticker representation is plausible."
         />
         <SummaryCard
           label="DSR trials in audit log"
-          value="3,184"
+          value={validation.dsrTrials}
           valueColor={colors.text2}
           note="Deflated Sharpe floors at max(logged, 2000). We cannot pretend fewer trials."
         />

@@ -1,23 +1,18 @@
 import { colors, fonts } from '../theme'
 import { card, sectionLabel, microLabel, redBanner } from '../styles'
-import {
-  portfolioWeights,
-  portfolioEffectiveN,
-  stressScenarios,
-  stressMap,
-  stressNote,
-  correlationCluster,
-} from '../data'
+import type { PortfolioData } from '../api'
 
 export default function PortfolioView({
+  portfolio,
   scenario,
   onScenario,
 }: {
+  portfolio: PortfolioData
   scenario: string
   onScenario: (s: string) => void
 }) {
-  const maxW = Math.max(...portfolioWeights.map((x) => x.w))
-  const sdata = stressMap[scenario]
+  const maxW = Math.max(...portfolio.weights.map((x) => x.w))
+  const sdata = portfolio.stressMap[scenario]
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
@@ -36,7 +31,7 @@ export default function PortfolioView({
               overflow: 'hidden',
             }}
           >
-            {portfolioWeights.map((w) => (
+            {portfolio.weights.map((w) => (
               <div
                 key={w.ticker}
                 style={{
@@ -75,7 +70,7 @@ export default function PortfolioView({
             }}
           >
             <span>Portfolio effective N</span>
-            <span style={{ color: colors.text2 }}>{portfolioEffectiveN}</span>
+            <span style={{ color: colors.text2 }}>{portfolio.effectiveN}</span>
           </div>
         </section>
 
@@ -97,7 +92,7 @@ export default function PortfolioView({
                 cursor: 'pointer',
               }}
             >
-              {stressScenarios.map((s) => (
+              {portfolio.scenarios.map((s) => (
                 <option key={s} value={s}>
                   {s}
                 </option>
@@ -130,7 +125,9 @@ export default function PortfolioView({
               </div>
             ))}
           </div>
-          <p style={{ margin: '16px 0 0', font: `400 11px/1.5 ${fonts.sans}`, color: colors.muted2 }}>{stressNote}</p>
+          <p style={{ margin: '16px 0 0', font: `400 11px/1.5 ${fonts.sans}`, color: colors.muted2 }}>
+            {portfolio.stressNote}
+          </p>
         </section>
       </div>
 
@@ -148,7 +145,7 @@ export default function PortfolioView({
         <span style={{ color: colors.red, fontSize: 13 }}>●</span>
         <div>
           <div style={{ font: `600 13px/1.3 ${fonts.sans}`, color: colors.text }}>
-            Correlation cluster detected — {correlationCluster.members}
+            Correlation cluster detected — {portfolio.cluster.members}
           </div>
           <div style={{ marginTop: 3, font: `400 12px/1.4 ${fonts.sans}`, color: colors.redText }}>
             These positions behave as a single trade.

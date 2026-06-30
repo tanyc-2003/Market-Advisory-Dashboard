@@ -1,21 +1,22 @@
 import { colors, fonts } from '../theme'
 import { card, cardFlush, sectionLabel, microLabel, amberBanner } from '../styles'
-import { calRows, calibrationCards, calibrationDrift } from '../data'
+import type { CalibrationData } from '../api'
 
 const cx = (p: number) => (p * 260).toFixed(1)
 const cy = (p: number) => (260 - p * 260).toFixed(1)
 
 const rowCols = '90px 1fr 1fr 64px'
 
-export default function CalibrationView() {
-  const points = calRows.map((r) => ({ cx: cx(r.implied), cy: cy(r.observed) }))
-  const polyline = calRows.map((r) => `${cx(r.implied)},${cy(r.observed)}`).join(' ')
+export default function CalibrationView({ calibration }: { calibration: CalibrationData }) {
+  const { cards, rows, drift } = calibration
+  const points = rows.map((r) => ({ cx: cx(r.implied), cy: cy(r.observed) }))
+  const polyline = rows.map((r) => `${cx(r.implied)},${cy(r.observed)}`).join(' ')
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
       {/* metric cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 14 }}>
-        {calibrationCards.map((c) => (
+        {cards.map((c) => (
           <div key={c.label} style={{ ...card, padding: '20px 22px' }}>
             <div style={microLabel}>{c.label}</div>
             <div style={{ marginTop: 10, font: `600 30px/1 ${fonts.mono}`, color: colors.text }}>{c.value}</div>
@@ -82,7 +83,7 @@ export default function CalibrationView() {
             <span>Observed (95% CI)</span>
             <span style={{ textAlign: 'right' }}>N</span>
           </div>
-          {calRows.map((r) => (
+          {rows.map((r) => (
             <div
               key={r.band}
               style={{
@@ -122,7 +123,7 @@ export default function CalibrationView() {
             <div>
               <div style={{ font: `600 12px/1.3 ${fonts.sans}`, color: colors.text }}>Thesis drift detected</div>
               <div style={{ marginTop: 4, font: `400 11px/1.45 ${fonts.sans}`, color: colors.amberText }}>
-                {calibrationDrift}
+                {drift}
               </div>
             </div>
           </div>
