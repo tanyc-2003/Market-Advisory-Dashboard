@@ -38,6 +38,12 @@ export interface MarketState {
   states: MarketStateRow[]
   uncertainty: string
   transition: string
+  /** 'live' (HMM over real data) or 'representative'. */
+  source?: string
+  /** true = promoted model, false = candidate (research preview), null = representative. */
+  validated?: boolean | null
+  /** research-preview note shown when the live model isn't Layer-0 signed off. */
+  disclosure?: string | null
 }
 
 export interface PortfolioData {

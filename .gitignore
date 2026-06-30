@@ -13,6 +13,7 @@ dist/
 data/db/*.duckdb
 data/db/*.wal
 data/cache/features/*.parquet
+models/*.pkl
 .venv/
 venv/
 

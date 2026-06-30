@@ -65,7 +65,7 @@ function GateStrip({ layers }: { layers: Layer[] }) {
 // ---------------- market state (Layer 1) ----------------
 
 function MarketStatePanel({ marketState }: { marketState: MarketState }) {
-  const { states, uncertainty, transition } = marketState
+  const { states, uncertainty, transition, disclosure } = marketState
   return (
     <section style={card}>
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 18 }}>
@@ -85,6 +85,22 @@ function MarketStatePanel({ marketState }: { marketState: MarketState }) {
           <div style={{ marginTop: 6, font: `500 16px/1 ${fonts.mono}`, color: colors.text2 }}>{uncertainty}</div>
         </div>
       </div>
+
+      {disclosure && (
+        <div
+          style={{
+            ...amberBanner,
+            margin: '0 0 16px',
+            padding: '7px 11px',
+            display: 'flex',
+            alignItems: 'flex-start',
+            gap: 9,
+          }}
+        >
+          <span style={{ color: colors.amber, fontSize: 11, lineHeight: 1.5 }}>▲</span>
+          <span style={{ font: `400 11px/1.45 ${fonts.sans}`, color: colors.amberText }}>{disclosure}</span>
+        </div>
+      )}
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 11 }}>
         {states.map((s, i) => (

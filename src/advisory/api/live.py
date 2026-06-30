@@ -252,6 +252,26 @@ def close_journal_entry(
         )
 
 
+# ---------------------------------------------------------------- market state (Layer 1)
+
+def market_state(conn: duckdb.DuckDBPyConnection | None) -> dict[str, Any]:
+    """Live HMM regime posterior when a trained model + features exist, else
+    the representative snapshot."""
+    try:
+        from . import market_state_live
+
+        live_ms = market_state_live.compute_market_state(conn)
+        if live_ms is not None:
+            return live_ms
+    except Exception:
+        pass
+    ms = presentation.market_state()
+    ms["validated"] = None
+    ms["disclosure"] = None
+    ms["source"] = "representative"
+    return ms
+
+
 # ---------------------------------------------------------------- assembly
 
 def build_dashboard() -> dict[str, Any]:
@@ -262,6 +282,7 @@ def build_dashboard() -> dict[str, Any]:
         coverage, _ = survivorship_coverage(conn)
         trials, _ = dsr_trials()
         journal_view, _ = journal(conn)
+        market_state_block = market_state(conn)
         meta_block = meta(conn)
 
     meta_block["gate"] = {
@@ -273,7 +294,7 @@ def build_dashboard() -> dict[str, Any]:
     return {
         "meta": meta_block,
         "layers": layer_rows,
-        "marketState": presentation.market_state(),
+        "marketState": market_state_block,
         "assets": presentation.assets(),
         "alerts": presentation.alerts(),
         "unknowns": presentation.unknowns(),
