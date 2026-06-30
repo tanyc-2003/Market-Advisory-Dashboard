@@ -70,6 +70,10 @@ export interface CalibrationData {
   cards: CalibrationCard[]
   rows: CalRow[]
   drift: string
+  /** true = thesis drift detected (amber), false = within threshold (green). */
+  driftDetected?: boolean
+  /** 'live' (graded from closed journal entries) or 'representative'. */
+  source?: string
 }
 
 export interface ValidationSummary {

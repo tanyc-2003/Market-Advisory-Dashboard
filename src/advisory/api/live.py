@@ -288,6 +288,24 @@ def assets(conn: duckdb.DuckDBPyConnection | None) -> list[dict[str, Any]]:
     return presentation.assets()
 
 
+# ---------------------------------------------------------------- calibration (Layer 9)
+
+def calibration(conn: duckdb.DuckDBPyConnection | None) -> dict[str, Any]:
+    """Live calibration graded from closed journal entries, else representative."""
+    try:
+        from . import calibration_live
+
+        live_cal = calibration_live.compute_calibration(conn)
+        if live_cal is not None:
+            return live_cal
+    except Exception:
+        pass
+    cal = presentation.calibration()
+    cal["driftDetected"] = True  # the representative snapshot depicts drift
+    cal["source"] = "representative"
+    return cal
+
+
 # ---------------------------------------------------------------- assembly
 
 def build_dashboard() -> dict[str, Any]:
@@ -300,6 +318,7 @@ def build_dashboard() -> dict[str, Any]:
         journal_view, _ = journal(conn)
         market_state_block = market_state(conn)
         asset_rows = assets(conn)
+        calibration_block = calibration(conn)
         meta_block = meta(conn)
 
     meta_block["gate"] = {
@@ -318,6 +337,6 @@ def build_dashboard() -> dict[str, Any]:
         "sizingNote": presentation.SIZING_NOTE,
         "portfolio": presentation.portfolio(),
         "journal": journal_view,
-        "calibration": presentation.calibration(),
+        "calibration": calibration_block,
         "validation": {"survivorshipCoverage": coverage, "dsrTrials": trials},
     }
