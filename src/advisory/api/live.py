@@ -272,6 +272,22 @@ def market_state(conn: duckdb.DuckDBPyConnection | None) -> dict[str, Any]:
     return ms
 
 
+# ---------------------------------------------------------------- watchlist (Layers 2 / 10)
+
+def assets(conn: duckdb.DuckDBPyConnection | None) -> list[dict[str, Any]]:
+    """Live historical-analog watchlist when real data + model exist, else
+    the representative watchlist."""
+    try:
+        from . import analogs_live
+
+        live_assets = analogs_live.compute_watchlist(conn)
+        if live_assets:
+            return live_assets
+    except Exception:
+        pass
+    return presentation.assets()
+
+
 # ---------------------------------------------------------------- assembly
 
 def build_dashboard() -> dict[str, Any]:
@@ -283,6 +299,7 @@ def build_dashboard() -> dict[str, Any]:
         trials, _ = dsr_trials()
         journal_view, _ = journal(conn)
         market_state_block = market_state(conn)
+        asset_rows = assets(conn)
         meta_block = meta(conn)
 
     meta_block["gate"] = {
@@ -295,7 +312,7 @@ def build_dashboard() -> dict[str, Any]:
         "meta": meta_block,
         "layers": layer_rows,
         "marketState": market_state_block,
-        "assets": presentation.assets(),
+        "assets": asset_rows,
         "alerts": presentation.alerts(),
         "unknowns": presentation.unknowns(),
         "sizingNote": presentation.SIZING_NOTE,
