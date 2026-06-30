@@ -139,9 +139,9 @@ def journal() -> dict[str, Any]:
     """Representative journal shown before any real entries are logged."""
     return {
         "open": [
-            {"ticker": "NVDA", "direction": "long", "conf": 4, "thesis": "Calm-bull regime + strong 63d momentum; invalidates on vol regime break.", "opened": "Jun 18"},
-            {"ticker": "XOM", "direction": "short", "conf": 2, "thesis": "Weak analogs, low conviction; sized small. Invalidates above MA50.", "opened": "Jun 23"},
-            {"ticker": "JPM", "direction": "long", "conf": 3, "thesis": "Financials breadth improving; cut if curve re-inverts hard.", "opened": "Jun 25"},
+            {"id": "", "ticker": "NVDA", "direction": "long", "conf": 4, "thesis": "Calm-bull regime + strong 63d momentum; invalidates on vol regime break.", "opened": "Jun 18"},
+            {"id": "", "ticker": "XOM", "direction": "short", "conf": 2, "thesis": "Weak analogs, low conviction; sized small. Invalidates above MA50.", "opened": "Jun 23"},
+            {"id": "", "ticker": "JPM", "direction": "long", "conf": 3, "thesis": "Financials breadth improving; cut if curve re-inverts hard.", "opened": "Jun 25"},
         ],
         "closed": [
             {"ticker": "MSFT", "direction": "long", "outcome": "Thesis confirmed — held 12d", "pnl": "+4.2%"},

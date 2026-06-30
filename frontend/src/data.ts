@@ -69,6 +69,8 @@ export interface StressData {
 }
 
 export interface OpenTrade {
+  /** Real DuckDB entry id; empty string for representative (un-closable) rows. */
+  id: string
   ticker: string
   direction: string
   conf: number

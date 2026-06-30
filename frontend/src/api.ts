@@ -92,6 +92,13 @@ export interface JournalEntryInput {
   thesis: string
 }
 
+export interface JournalCloseInput {
+  /** Realised P&L as a percentage, e.g. -3.1 for -3.1%. */
+  pnlPct: number
+  exitReason: string
+  thesisValidated: boolean
+}
+
 export type JournalSubmitResult = { ok: true } | { ok: false; error: string }
 
 const BASE: string = import.meta.env.VITE_API_BASE ?? '/api'
@@ -102,21 +109,32 @@ export async function fetchDashboard(signal?: AbortSignal): Promise<DashboardDat
   return (await res.json()) as DashboardData
 }
 
+async function errorDetail(res: Response, fallback: string): Promise<string> {
+  try {
+    const body = (await res.json()) as { detail?: unknown }
+    if (body?.detail) return typeof body.detail === 'string' ? body.detail : JSON.stringify(body.detail)
+  } catch {
+    /* non-JSON error body — keep the status message */
+  }
+  return fallback
+}
+
 export async function postJournalEntry(entry: JournalEntryInput): Promise<DashboardData> {
   const res = await fetch(`${BASE}/journal`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(entry),
   })
-  if (!res.ok) {
-    let detail = `Journal request failed (${res.status})`
-    try {
-      const body = (await res.json()) as { detail?: unknown }
-      if (body?.detail) detail = typeof body.detail === 'string' ? body.detail : JSON.stringify(body.detail)
-    } catch {
-      /* non-JSON error body — keep the status message */
-    }
-    throw new Error(detail)
-  }
+  if (!res.ok) throw new Error(await errorDetail(res, `Journal request failed (${res.status})`))
+  return (await res.json()) as DashboardData
+}
+
+export async function closeJournalEntry(id: string, payload: JournalCloseInput): Promise<DashboardData> {
+  const res = await fetch(`${BASE}/journal/${encodeURIComponent(id)}/close`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  if (!res.ok) throw new Error(await errorDetail(res, `Close request failed (${res.status})`))
   return (await res.json()) as DashboardData
 }

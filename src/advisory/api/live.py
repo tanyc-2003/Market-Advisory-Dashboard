@@ -138,6 +138,7 @@ def _open_to_dict(e: Any) -> dict[str, Any]:
     if isinstance(opened, date):
         opened = f"{opened:%b} {opened.day}"
     return {
+        "id": e.entry_id,
         "ticker": e.ticker,
         "direction": e.direction,
         "conf": int(e.confidence_self),
@@ -218,6 +219,37 @@ def add_journal_entry(
         )
         entry.validate()  # raises JournalEntryError before any write
         JournalStore(conn).save(entry)
+
+
+class JournalEntryNotFound(KeyError):
+    """Raised when closing an entry id that has no matching open trade."""
+
+
+def close_journal_entry(
+    *,
+    entry_id: str,
+    pnl_pct: float,
+    exit_reason: str | None = None,
+    thesis_validated: bool = True,
+) -> None:
+    """Close an open trade. ``pnl_pct`` is a fraction (e.g. 0.042 for +4.2%)."""
+    from ..layer8_journal.store import JournalStore
+
+    with db.LOCK:
+        conn = db.get_main_conn(create=False)
+        if conn is None:
+            raise JournalEntryNotFound(entry_id)
+        store = JournalStore(conn)
+        open_ids = {e.entry_id for e in store.get_open_trades()}
+        if entry_id not in open_ids:
+            raise JournalEntryNotFound(entry_id)
+        store.close_trade(
+            entry_id=entry_id,
+            exit_date=date.today(),
+            pnl_pct=float(pnl_pct),
+            exit_reason=(exit_reason or "Closed").strip() or "Closed",
+            thesis_validated=bool(thesis_validated),
+        )
 
 
 # ---------------------------------------------------------------- assembly

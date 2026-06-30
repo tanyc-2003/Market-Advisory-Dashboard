@@ -42,6 +42,13 @@ class JournalEntryIn(BaseModel):
     expectedHorizon: int | None = Field(default=None, ge=1)
 
 
+class JournalCloseIn(BaseModel):
+    #: Realised P&L as a percentage (e.g. -3.1 for -3.1%); stored as a fraction.
+    pnlPct: float
+    exitReason: str | None = None
+    thesisValidated: bool = True
+
+
 @app.get("/api/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
@@ -68,4 +75,19 @@ def add_journal(entry: JournalEntryIn) -> dict[str, Any]:
         )
     except JournalEntryError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return live.build_dashboard()
+
+
+@app.post("/api/journal/{entry_id}/close")
+def close_journal(entry_id: str, body: JournalCloseIn) -> dict[str, Any]:
+    """Close an open trade (records exit date, P&L, reason), then refresh."""
+    try:
+        live.close_journal_entry(
+            entry_id=entry_id,
+            pnl_pct=body.pnlPct / 100.0,
+            exit_reason=body.exitReason,
+            thesis_validated=body.thesisValidated,
+        )
+    except live.JournalEntryNotFound as exc:
+        raise HTTPException(status_code=404, detail="Open trade not found") from exc
     return live.build_dashboard()

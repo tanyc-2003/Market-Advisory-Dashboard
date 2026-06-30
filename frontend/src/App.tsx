@@ -4,8 +4,10 @@ import { headers, type ViewId } from './data'
 import {
   fetchDashboard,
   postJournalEntry,
+  closeJournalEntry,
   type DashboardData,
   type JournalEntryInput,
+  type JournalCloseInput,
   type JournalSubmitResult,
 } from './api'
 import Sidebar from './components/Sidebar'
@@ -77,6 +79,19 @@ export default function App() {
         return { ok: false, error: e instanceof Error ? e.message : String(e) }
       } finally {
         setSubmitting(false)
+      }
+    },
+    [],
+  )
+
+  const handleJournalClose = useCallback(
+    async (id: string, payload: JournalCloseInput): Promise<JournalSubmitResult> => {
+      try {
+        const updated = await closeJournalEntry(id, payload)
+        setData(updated)
+        return { ok: true }
+      } catch (e) {
+        return { ok: false, error: e instanceof Error ? e.message : String(e) }
       }
     },
     [],
@@ -181,7 +196,12 @@ export default function App() {
             <PortfolioView portfolio={data.portfolio} scenario={stressScenario} onScenario={setStressScenario} />
           )}
           {view === 'journal' && (
-            <JournalView journal={data.journal} submitting={submitting} onSubmit={handleJournalSubmit} />
+            <JournalView
+              journal={data.journal}
+              submitting={submitting}
+              onSubmit={handleJournalSubmit}
+              onClose={handleJournalClose}
+            />
           )}
           {view === 'calibration' && <CalibrationView calibration={data.calibration} />}
           {view === 'validation' && <ValidationView layers={data.layers} validation={data.validation} />}
