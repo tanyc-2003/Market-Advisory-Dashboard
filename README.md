@@ -40,13 +40,24 @@ python scripts/seed_synthetic_data.py  # deterministic synthetic universe (no ne
 # - OR -
 python scripts/ingest_real_data.py     # real OHLCV (yfinance) + macro (FRED) - no API key
 
-python scripts/run_validation.py       # populate validation_reports (required before dashboard renders)
+python scripts/run_validation.py       # populate validation_reports (required before the Streamlit gate renders)
 
-# Run the dashboard
+# Run the UI — pick one:
+
+# (A) React web app (current UI) — needs Node 18+ and the API extra
+pip install -e ".[api]"
+python scripts/run_api.py              # FastAPI on http://localhost:8000
+#   ...then in a second terminal:
+cd frontend && npm install && npm run dev   # Vite dev server on http://localhost:5173
+
+# (B) Streamlit (legacy UI)
 streamlit run src/advisory/dashboard/app.py
 ```
 
-Open `http://localhost:8501`.  The first page is **Validation** — every other page is gated on the sign-off shown there.
+There are **two UIs over the same backend** (see [docs/10_web_stack.md](docs/10_web_stack.md)):
+
+- **React web app (current):** open `http://localhost:5173`. It loads the whole dashboard from `GET /api/dashboard` in one round trip. With no data present it renders representative values (the sidebar says so); run the data pipeline below to make the market-state, watchlist, sizing and calibration panels live, each with an honest research-preview disclosure.
+- **Streamlit (legacy):** open `http://localhost:8501`. The first page is **Validation** — every other page is gated on the sign-off shown there.
 
 > **Why `run_validation.py` is required.** The dashboard reads pre-computed `ValidationReport`s from the `validation_reports` table and refuses to display layer outputs without one — every layer shows `no_report` until you populate it. This is the architectural default: nothing is treated as evidence until Layer 0 has signed it off.
 
@@ -200,14 +211,19 @@ src/advisory/
   layer10_sizing/       # tail-aware Kelly - regime haircut - 20% absolute cap
                         # V7_lite: lite_diagnostics.py adds binomial wipeout injection
   layer_llm/            # optional, off-path: LLMContextPacket + CachedLLMInterface
-  dashboard/            # Streamlit entry, state helpers, components, 8 pages
+  api/                  # FastAPI service for the React UI (current)
+                        # app, live (payload assembly), presentation (representative
+                        # data), db, market_state_live, analogs_live, calibration_live
+  dashboard/            # Streamlit entry, state helpers, components, 8 pages (legacy UI)
                         # V7_lite: mode indicator, survivorship panel, locked tiles
   paper_trading/        # RealisticExecutionHarness
                         # V7_lite: CS-spread / amihud_z separation assertion
 
+frontend/               # React + Vite + TypeScript SPA (current UI)
+                        # src/api.ts (typed client), App.tsx, views/, components/
 config/                 # settings.py + sector_map.yaml + lite_feature_set_9dim.yaml
 scripts/                # bootstrap_db, seed_synthetic_data, ingest_real_data,
-                        # run_validation, train_hmm, validate_hmm_candidate
+                        # run_validation, train_hmm, validate_hmm_candidate, run_api
 tests/                  # 280 passing tests (205 V7 + 75 V7_lite)
 docs/                   # full architecture & usage docs
 ```
@@ -226,9 +242,10 @@ The full per-layer documentation lives in [`docs/`](docs/):
 - [docs/04_layers.md](docs/04_layers.md) — per-layer specifications and public API
 - [docs/05_running.md](docs/05_running.md) — bootstrap, seed, test, debug
 - [docs/06_developing.md](docs/06_developing.md) — adding a new layer / extending an existing one
-- [docs/07_dashboard.md](docs/07_dashboard.md) — Streamlit pages, sign-off gate behaviour, components
+- [docs/07_dashboard.md](docs/07_dashboard.md) — Streamlit pages (legacy UI), sign-off gate behaviour, components
 - [docs/08_llm.md](docs/08_llm.md) — optional LLM interpretation layer
 - [docs/09_v7_lite.md](docs/09_v7_lite.md) — V7_lite (Scanner+) extension and operating modes
+- [docs/10_web_stack.md](docs/10_web_stack.md) — **React frontend + FastAPI API** (current UI): payload contract, live-vs-representative wiring, the data pipeline
 
 For background reading, the architecture source-of-truth is `Claude code building guide/Advisory_Dashboard_Architecture_v7.md` (and `_v7_lite.md` for the extension).  The phase-by-phase build guides are in the same folder.
 

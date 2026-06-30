@@ -64,23 +64,28 @@ src/
 
 The dashboard is wired to a FastAPI backend (`src/advisory/api/`). On load the
 app fetches `GET /api/dashboard` (one round trip) via the typed client in
-`src/api.ts`; the journal form posts to `POST /api/journal`, which persists the
-entry to DuckDB and returns the refreshed payload.
+`src/api.ts`; the journal form posts to `POST /api/journal` and `POST
+/api/journal/{id}/close`, which persist to DuckDB and return the refreshed payload.
 
-What's genuinely live vs. representative:
+What's genuinely live vs. representative (full matrix in
+[../docs/10_web_stack.md](../docs/10_web_stack.md)):
 
-- **Live now:** run mode / settings, Kelly cap, survivorship coverage (computed
-  from seeded features), the DSR audit trial count, and the **trade journal**
-  (the Log-entry form writes to `journal_entries`; logging the first trade flips
-  the sidebar from "representative" to live).
-- **Representative (server-side, single source of truth in
-  `src/advisory/api/presentation.py`):** market state, analogs/watchlist,
-  sizing, calibration, portfolio/stress, alerts. Each can be swapped to live
-  compute one endpoint at a time without touching the frontend — the validation
-  gate already overlays any persisted `ValidationReport`s automatically.
+- **Live:** run mode / settings, Kelly cap, survivorship coverage, DSR audit
+  count; the **trade journal** incl. trade-close; **market state** from a
+  real-data HMM (Layer 1); the **watchlist analogs + sizing** (Layers 2 / 10);
+  and **calibration** graded from closed journal entries (Layer 9). The live
+  models carry a research-preview disclosure — they don't clear Layer 0
+  predictive sign-off.
+- **Representative (server-side default in `src/advisory/api/presentation.py`):**
+  portfolio / stress (Layer 6), alerts (Layer 7), and the Layer 0 gate metrics
+  (which overlay persisted `ValidationReport`s when present). Each section falls
+  back to representative data when its store/model is absent, so a panel is never
+  empty.
 
 `src/data.ts` now holds only the TypeScript shapes (and UI copy); the values
-come from the API. To point at a non-default API, set `VITE_API_BASE`.
+come from the API. To point at a non-default API, set `VITE_API_BASE`. To make
+the live panels real, run the data pipeline in
+[../docs/10_web_stack.md](../docs/10_web_stack.md#enabling-live-data).
 
 ## Design fidelity notes
 

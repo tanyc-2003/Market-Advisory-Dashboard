@@ -12,8 +12,9 @@ The architecture source-of-truth is `../Claude code building guide/Advisory_Dash
 | [04_layers.md](04_layers.md) | implementer | per-layer public API reference |
 | [05_running.md](05_running.md) | operator | install, bootstrap, seed, test, debug recipes |
 | [06_developing.md](06_developing.md) | implementer | house style, adding a layer/feature, common pitfalls |
-| [07_dashboard.md](07_dashboard.md) | operator / trader | Streamlit pages, sign-off gate behaviour, session state, components |
+| [07_dashboard.md](07_dashboard.md) | operator / trader | Streamlit pages (legacy UI), sign-off gate behaviour, session state, components |
 | [08_llm.md](08_llm.md) | operator | optional LLM layer — what it can/cannot do, enabling it, cache + TTL |
 | [09_v7_lite.md](09_v7_lite.md) | operator / reviewer | V7_lite (Scanner+) extension — the three modes, eight new invariants, locked layers |
+| [10_web_stack.md](10_web_stack.md) | operator / implementer | React + Vite frontend + FastAPI API — payload contract, live-vs-representative wiring, the data pipeline |
 
-A reader who wants the shortest path to understanding should read 01 → 03 → 05 → 07. A reader who is reviewing a PR should read 03 + 09 first. An operator picking the free vs paid data tier should jump straight to 09.
+A reader who wants the shortest path to understanding should read 01 → 03 → 05 → 10. A reader who is reviewing a PR should read 03 + 09 first. An operator picking the free vs paid data tier should jump straight to 09. Anyone running or extending the **current** UI (React web app + HTTP API) should read 10; 07 documents the legacy Streamlit UI it supersedes.

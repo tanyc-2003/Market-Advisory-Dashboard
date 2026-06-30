@@ -48,7 +48,16 @@ decorator enforces this in code. Never bypass it.
 pip install -e ".[dev]"
 python scripts/bootstrap_db.py
 python scripts/seed_synthetic_data.py
-streamlit run src/advisory/dashboard/app.py
+streamlit run src/advisory/dashboard/app.py   # legacy Streamlit UI
+
+## Web UI (current) — React + Vite frontend + FastAPI API
+# Architecture + live-vs-representative wiring: docs/10_web_stack.md
+pip install -e ".[api]"
+python scripts/run_api.py                      # FastAPI on :8000
+cd frontend && npm install && npm run dev      # Vite on :5173
+# Make live panels real: scripts/ingest_real_data.py then scripts/train_hmm.py --mode v7_lite
+# API code: src/advisory/api/ (presentation.py = representative source of truth;
+# *_live.py = live wiring with research-preview disclosures).
 
 ## Running tests
 pytest tests/ -v --cov=src/advisory
