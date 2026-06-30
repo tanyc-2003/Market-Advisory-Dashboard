@@ -1,5 +1,6 @@
 import { colors, fonts } from '../theme'
-import { gateCounts, type HeaderInfo } from '../data'
+import type { HeaderInfo } from '../data'
+import type { Gate } from '../api'
 
 function GatePill({ color, label }: { color: string; label: string }) {
   return (
@@ -20,7 +21,7 @@ function GatePill({ color, label }: { color: string; label: string }) {
   )
 }
 
-export default function Header({ header }: { header: HeaderInfo }) {
+export default function Header({ header, gate }: { header: HeaderInfo; gate: Gate }) {
   return (
     <header
       style={{
@@ -58,8 +59,8 @@ export default function Header({ header }: { header: HeaderInfo }) {
         </p>
       </div>
       <div style={{ flex: 'none', display: 'flex', gap: 8, alignItems: 'center' }}>
-        <GatePill color={colors.green} label={`${gateCounts.production} production`} />
-        <GatePill color={colors.amber} label={`${gateCounts.preview} preview`} />
+        <GatePill color={colors.green} label={`${gate.production} production`} />
+        <GatePill color={colors.amber} label={`${gate.preview} preview`} />
       </div>
     </header>
   )

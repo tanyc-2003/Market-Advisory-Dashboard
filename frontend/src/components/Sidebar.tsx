@@ -1,10 +1,12 @@
 import { useState } from 'react'
 import { colors, fonts } from '../theme'
-import { asOf, navItems, type NavItem, type ViewId } from '../data'
+import { navItems, type NavItem, type ViewId } from '../data'
 
 interface SidebarProps {
   view: ViewId
   onNavigate: (v: ViewId) => void
+  asOf: string
+  live: boolean
 }
 
 function NavRow({
@@ -75,7 +77,7 @@ function NavRow({
   )
 }
 
-export default function Sidebar({ view, onNavigate }: SidebarProps) {
+export default function Sidebar({ view, onNavigate, asOf, live }: SidebarProps) {
   return (
     <aside
       style={{
@@ -159,7 +161,9 @@ export default function Sidebar({ view, onNavigate }: SidebarProps) {
         >
           <span style={{ color: colors.amber, fontSize: 12, lineHeight: 1.5 }}>▲</span>
           <span style={{ font: `400 11px/1.45 ${fonts.sans}`, color: colors.amberText }}>
-            Data is current. Outputs reflect the most recent point-in-time feature snapshot.
+            {live
+              ? 'Data is current. Outputs reflect the most recent point-in-time feature snapshot.'
+              : 'Representative data — backend store not seeded. Log a trade to start a live journal.'}
           </span>
         </div>
       </div>

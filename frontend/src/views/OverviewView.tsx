@@ -1,22 +1,12 @@
 import { useState } from 'react'
 import { colors, fonts, statusColor, fmtPct, pos } from '../theme'
 import { card, sectionLabel, microLabel, amberBanner } from '../styles'
-import {
-  layers,
-  states,
-  marketStateMeta,
-  assets,
-  alerts,
-  unknowns,
-  sizingNote,
-  KELLY_CAP,
-  type Asset,
-  type Alert,
-} from '../data'
+import type { Layer, Asset, Alert } from '../data'
+import type { MarketState } from '../api'
 
 // ---------------- gate strip (Layer 0) ----------------
 
-function GateStrip() {
+function GateStrip({ layers }: { layers: Layer[] }) {
   return (
     <section>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 13 }}>
@@ -74,7 +64,8 @@ function GateStrip() {
 
 // ---------------- market state (Layer 1) ----------------
 
-function MarketState() {
+function MarketStatePanel({ marketState }: { marketState: MarketState }) {
+  const { states, uncertainty, transition } = marketState
   return (
     <section style={card}>
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 18 }}>
@@ -82,18 +73,16 @@ function MarketState() {
           <h2 style={sectionLabel}>Layer 1 — Market state</h2>
           <div style={{ marginTop: 10, display: 'flex', alignItems: 'baseline', gap: 11 }}>
             <span style={{ font: `600 24px/1 ${fonts.sans}`, letterSpacing: '-0.01em', color: colors.text }}>
-              {states[0].name}
+              {states[0]?.name}
             </span>
             <span style={{ font: `500 13px/1 ${fonts.mono}`, color: colors.green }}>
-              {(states[0].prob * 100).toFixed(0)}%
+              {((states[0]?.prob ?? 0) * 100).toFixed(0)}%
             </span>
           </div>
         </div>
         <div style={{ textAlign: 'right' }}>
           <div style={microLabel}>Uncertainty</div>
-          <div style={{ marginTop: 6, font: `500 16px/1 ${fonts.mono}`, color: colors.text2 }}>
-            {marketStateMeta.uncertainty}
-          </div>
+          <div style={{ marginTop: 6, font: `500 16px/1 ${fonts.mono}`, color: colors.text2 }}>{uncertainty}</div>
         </div>
       </div>
 
@@ -144,7 +133,7 @@ function MarketState() {
         >
           TRANSITION
         </span>
-        <span style={{ font: `400 12px/1.5 ${fonts.sans}`, color: colors.muted4 }}>{marketStateMeta.transition}</span>
+        <span style={{ font: `400 12px/1.5 ${fonts.sans}`, color: colors.muted4 }}>{transition}</span>
       </div>
     </section>
   )
@@ -152,14 +141,24 @@ function MarketState() {
 
 // ---------------- sizing (Layer 10) ----------------
 
-function SizingPanel({ selectedTicker }: { selectedTicker: string }) {
+function SizingPanel({
+  assets,
+  selectedTicker,
+  sizingNote,
+  kellyCap,
+}: {
+  assets: Asset[]
+  selectedTicker: string
+  sizingNote: string
+  kellyCap: string
+}) {
   const selA = assets.find((a) => a.ticker === selectedTicker) ?? assets[0]
   const sz = selA.sizing
   const ladder = [
     { label: 'Raw Kelly', value: sz.raw.toFixed(2) },
     { label: 'Standard haircut (×0.5)', value: sz.std.toFixed(2) },
     { label: 'Regime-aware haircut', value: sz.regime.toFixed(2) },
-    { label: 'After 0.20 cap', value: sz.displayed.toFixed(2) },
+    { label: `After ${kellyCap} cap`, value: sz.displayed.toFixed(2) },
   ]
   return (
     <section style={{ ...card, display: 'flex', flexDirection: 'column' }}>
@@ -185,7 +184,7 @@ function SizingPanel({ selectedTicker }: { selectedTicker: string }) {
         <div style={{ marginTop: 8, font: `600 44px/1 ${fonts.mono}`, color: colors.blue }}>
           {sz.displayed.toFixed(2)}
         </div>
-        <div style={{ marginTop: 6, font: `400 11px/1 ${fonts.mono}`, color: colors.muted }}>hard cap {KELLY_CAP}</div>
+        <div style={{ marginTop: 6, font: `400 11px/1 ${fonts.mono}`, color: colors.muted }}>hard cap {kellyCap}</div>
       </div>
 
       <div
@@ -387,9 +386,11 @@ function AssetRow({
 }
 
 function Watchlist({
+  assets,
   selectedTicker,
   onSelectTicker,
 }: {
+  assets: Asset[]
   selectedTicker: string
   onSelectTicker: (t: string) => void
 }) {
@@ -458,13 +459,13 @@ function sevStyle(n: 1 | 2 | 3) {
   return map[n]
 }
 
-function AlertsAndUnknowns() {
+function AlertsAndUnknowns({ alerts, unknowns }: { alerts: Alert[]; unknowns: string[] }) {
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18 }}>
       <section style={card}>
         <h2 style={{ ...sectionLabel, margin: '0 0 16px' }}>Layer 7 — Active alerts</h2>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {alerts.map((al: Alert) => {
+          {alerts.map((al) => {
             const sv = sevStyle(al.sev)
             return (
               <div
@@ -524,21 +525,35 @@ function AlertsAndUnknowns() {
 // ---------------- view ----------------
 
 export default function OverviewView({
+  layers,
+  marketState,
+  assets,
+  alerts,
+  unknowns,
+  sizingNote,
+  kellyCap,
   selectedTicker,
   onSelectTicker,
 }: {
+  layers: Layer[]
+  marketState: MarketState
+  assets: Asset[]
+  alerts: Alert[]
+  unknowns: string[]
+  sizingNote: string
+  kellyCap: string
   selectedTicker: string
   onSelectTicker: (t: string) => void
 }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-      <GateStrip />
+      <GateStrip layers={layers} />
       <div style={{ display: 'grid', gridTemplateColumns: '1.45fr 1fr', gap: 18 }}>
-        <MarketState />
-        <SizingPanel selectedTicker={selectedTicker} />
+        <MarketStatePanel marketState={marketState} />
+        <SizingPanel assets={assets} selectedTicker={selectedTicker} sizingNote={sizingNote} kellyCap={kellyCap} />
       </div>
-      <Watchlist selectedTicker={selectedTicker} onSelectTicker={onSelectTicker} />
-      <AlertsAndUnknowns />
+      <Watchlist assets={assets} selectedTicker={selectedTicker} onSelectTicker={onSelectTicker} />
+      <AlertsAndUnknowns alerts={alerts} unknowns={unknowns} />
     </div>
   )
 }
