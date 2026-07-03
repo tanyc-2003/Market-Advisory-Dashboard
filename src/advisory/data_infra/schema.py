@@ -163,6 +163,46 @@ CREATE TABLE IF NOT EXISTS cboe_pc_ratio (
 );
 """
 
+# ------------------------------------------------------------------ #
+# Dashboard analytics extensions (additive) — see brainstorm/ specs.
+# ------------------------------------------------------------------ #
+
+# System self-grading track record (Tier 1 #1). One row per (ticker, as-of
+# date): the watchlist call as stated, resolved against the realised forward
+# return once the horizon elapses.
+SYSTEM_PREDICTIONS_DDL = """
+CREATE TABLE IF NOT EXISTS system_predictions (
+    prediction_id  VARCHAR PRIMARY KEY,
+    ticker         VARCHAR NOT NULL,
+    knowledge_date DATE    NOT NULL,
+    horizon_days   INTEGER NOT NULL DEFAULT 10,
+    pred_p50       DOUBLE,
+    pred_p5        DOUBLE,
+    pred_p95       DOUBLE,
+    pred_hit_prob  DOUBLE,
+    pred_sizing    DOUBLE,
+    effective_n    DOUBLE,
+    realized_ret   DOUBLE,
+    benchmark_ret  DOUBLE,
+    alpha          DOUBLE,
+    resolved       BOOLEAN NOT NULL DEFAULT FALSE,
+    resolved_at    DATE
+);
+"""
+
+# Persistent per-ticker notes / inbox (Tier 2 #6).
+NOTES_DDL = """
+CREATE TABLE IF NOT EXISTS notes (
+    note_id    VARCHAR PRIMARY KEY,
+    ticker     VARCHAR,
+    created_at TIMESTAMP NOT NULL DEFAULT now(),
+    kind       VARCHAR NOT NULL,
+    source     VARCHAR,
+    body       TEXT    NOT NULL,
+    read       BOOLEAN NOT NULL DEFAULT FALSE
+);
+"""
+
 
 def _add_app_mode_columns(conn: duckdb.DuckDBPyConnection) -> None:
     """Add the V7_lite ``app_mode`` column to the three audit tables.
@@ -198,6 +238,8 @@ def bootstrap_schema(conn: duckdb.DuckDBPyConnection) -> None:
         HMM_MODEL_REGISTRY_DDL,
         YFINANCE_FETCH_AUDIT_DDL,
         CBOE_PC_RATIO_DDL,
+        SYSTEM_PREDICTIONS_DDL,
+        NOTES_DDL,
     ):
         for statement in ddl.strip().split(";"):
             stmt = statement.strip()
