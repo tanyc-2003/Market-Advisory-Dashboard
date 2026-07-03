@@ -49,6 +49,11 @@ class JournalCloseIn(BaseModel):
     thesisValidated: bool = True
 
 
+class NoteIn(BaseModel):
+    body: str = Field(min_length=1)
+    ticker: str | None = Field(default=None, max_length=12)
+
+
 @app.get("/api/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
@@ -90,4 +95,19 @@ def close_journal(entry_id: str, body: JournalCloseIn) -> dict[str, Any]:
         )
     except live.JournalEntryNotFound as exc:
         raise HTTPException(status_code=404, detail="Open trade not found") from exc
+    return live.build_dashboard()
+
+
+@app.post("/api/notes")
+def add_note(note: NoteIn) -> dict[str, Any]:
+    """Add a trader note to the inbox, then refresh."""
+    live.add_note(body=note.body, ticker=note.ticker)
+    return live.build_dashboard()
+
+
+@app.post("/api/notes/{note_id}/read")
+def read_note(note_id: str) -> dict[str, Any]:
+    """Mark a note read, then refresh."""
+    if not live.mark_note_read(note_id):
+        raise HTTPException(status_code=404, detail="Note not found")
     return live.build_dashboard()

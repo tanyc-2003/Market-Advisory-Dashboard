@@ -51,19 +51,23 @@ _LOCK = threading.Lock()
 _cache: dict[str, Any] = {"key": None, "value": None}
 
 
-def _ticker_history(conn: duckdb.DuckDBPyConnection, ticker: str):
+def _ticker_history(conn: duckdb.DuckDBPyConnection, ticker: str, as_of=None):
+    """Wide per-ticker feature history. ``as_of`` (a date) caps the rows to
+    ``effective_date <= as_of`` so predictions can be computed point-in-time."""
     import polars as pl
 
     feats = _DISTANCE_FEATURES + [_FWD]
     cols = ", ".join(f"'{c}'" for c in feats)
+    clause = "" if as_of is None else " AND effective_date <= ?"
+    params: list = [ticker] if as_of is None else [ticker, as_of]
     rows = conn.execute(
         f"""
         SELECT effective_date, feature_name, feature_value
         FROM features_pit
-        WHERE ticker = ? AND feature_name IN ({cols})
+        WHERE ticker = ? AND feature_name IN ({cols}){clause}
         ORDER BY effective_date
         """,
-        [ticker],
+        params,
     ).fetchall()
     if not rows:
         return None
@@ -133,6 +137,30 @@ def _kelly_ladder(fwd: np.ndarray, hit_rate: float, effective_n: float) -> dict[
     return {"raw": raw, "std": std, "regime": regime, "displayed": displayed}
 
 
+def _forecast_bands(p5: float, p50: float, p95: float, horizon: int = 10) -> list[dict[str, float]]:
+    """Approximate a per-horizon fan from the terminal band: band width scales
+    ~sqrt(time), median drift ~linearly. Disclosed as an approximation
+    (``forecastApprox``) until true per-horizon analog features are ingested."""
+    import math
+
+    out: list[dict[str, float]] = []
+    for h in (1, 3, 5, horizon):
+        s = math.sqrt(h / horizon)
+        out.append({"h": h, "p5": p5 * s, "p50": p50 * (h / horizon), "p95": p95 * s})
+    return out
+
+
+def _p_vol_shift(fwd: np.ndarray, current_vol_annual: float | None, horizon: int = 10) -> float | None:
+    """Proxy for P(volatility regime shift): the share of analog forward moves
+    whose magnitude exceeds the current annualised vol scaled to the horizon."""
+    import math
+
+    if current_vol_annual is None or current_vol_annual <= 0 or fwd.size == 0:
+        return None
+    threshold = current_vol_annual * math.sqrt(horizon / 252.0)
+    return float((np.abs(fwd) > threshold).mean())
+
+
 def _conf(effective_n: float) -> str:
     if effective_n >= 20:
         return "moderate"
@@ -186,6 +214,9 @@ def _asset(conn, ticker: str, sector: str, ms_engine, state_map, current_state) 
     p5, p25, p50, p75, p95 = (float(np.percentile(fwd, q)) for q in (5, 25, 50, 75, 95))
     eff_n = float(result.effective_n_recency_weighted)
 
+    idx_vol = _DISTANCE_FEATURES.index("realized_vol_21d")
+    current_vol = float(query[idx_vol])
+
     asset: dict[str, Any] = {
         "ticker": ticker,
         "sector": sector,
@@ -196,6 +227,11 @@ def _asset(conn, ticker: str, sector: str, ms_engine, state_map, current_state) 
         "disagreement": disagreement,
         "drivers": _drivers(query, hist_x, _DISTANCE_FEATURES),
         "sizing": _kelly_ladder(fwd, float(result.hit_rate), eff_n),
+        # Forecast fan (approx) + compact probability tiles (Tier 1 #3).
+        "pUp": float(result.hit_rate),
+        "pVolShift": _p_vol_shift(fwd, current_vol),
+        "forecast": _forecast_bands(p5, p50, p95),
+        "forecastApprox": True,
     }
     if note is not None:
         asset["disagreementNote"] = note

@@ -306,6 +306,67 @@ def calibration(conn: duckdb.DuckDBPyConnection | None) -> dict[str, Any]:
     return cal
 
 
+# ---------------------------------------------------------------- data health / track record / notes
+
+def data_health(conn: duckdb.DuckDBPyConnection | None) -> dict[str, Any]:
+    try:
+        from . import data_health_live
+
+        dh = data_health_live.compute_data_health(conn)
+        if dh is not None:
+            return dh
+    except Exception:
+        pass
+    return {"asOf": None, "overall": "unknown", "feeds": [], "source": "representative"}
+
+
+def track_record(conn: duckdb.DuckDBPyConnection | None) -> dict[str, Any]:
+    try:
+        from . import track_record_live
+
+        tr = track_record_live.compute_track_record(conn)
+        if tr is not None:
+            return tr
+    except Exception:
+        pass
+    return {
+        "resolved": 0, "pending": 0, "hitRate": None, "directionalAccuracy": None,
+        "meanPredP50": None, "meanRealized": None, "alphaMean": None, "alphaHitRate": None,
+        "byTicker": [], "reliability": [], "source": "representative",
+    }
+
+
+def notes(conn: duckdb.DuckDBPyConnection | None) -> dict[str, Any]:
+    try:
+        from . import notes_live
+
+        n = notes_live.compute_notes(conn)
+        if n is not None:
+            return n
+    except Exception:
+        pass
+    return {"unread": 0, "items": [], "source": "representative"}
+
+
+def add_note(*, body: str, ticker: str | None = None) -> None:
+    from . import notes_live
+
+    with db.LOCK:
+        conn = db.get_main_conn(create=True)
+        assert conn is not None
+        notes_live.add_note(conn, body=body, ticker=ticker, kind="user", source="trader")
+
+
+def mark_note_read(note_id: str) -> bool:
+    from . import notes_live
+
+    with db.LOCK:
+        conn = db.get_main_conn(create=False)
+        if conn is None:
+            return False
+        return notes_live.mark_read(conn, note_id)
+
+
 # ---------------------------------------------------------------- assembly
 
 def build_dashboard() -> dict[str, Any]:
@@ -319,7 +380,18 @@ def build_dashboard() -> dict[str, Any]:
         market_state_block = market_state(conn)
         asset_rows = assets(conn)
         calibration_block = calibration(conn)
+        data_health_block = data_health(conn)
+        track_record_block = track_record(conn)
+        notes_block = notes(conn)
         meta_block = meta(conn)
+
+    # Bull/bear synthesis composes already-assembled sections (in-memory only).
+    try:
+        from . import synthesis_live
+
+        synthesis_live.build_cases(asset_rows, market_state_block)
+    except Exception:
+        pass
 
     meta_block["gate"] = {
         "production": sum(1 for layer in layer_rows if layer["status"] == "production"),
@@ -339,4 +411,7 @@ def build_dashboard() -> dict[str, Any]:
         "journal": journal_view,
         "calibration": calibration_block,
         "validation": {"survivorshipCoverage": coverage, "dsrTrials": trials},
+        "dataHealth": data_health_block,
+        "trackRecord": track_record_block,
+        "notes": notes_block,
     }
