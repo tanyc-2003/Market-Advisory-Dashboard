@@ -367,6 +367,53 @@ def mark_note_read(note_id: str) -> bool:
         return notes_live.mark_read(conn, note_id)
 
 
+def stress(conn: duckdb.DuckDBPyConnection | None) -> dict[str, Any]:
+    try:
+        from . import stress_live
+
+        s = stress_live.compute_stress(conn)
+        if s is not None:
+            return s
+    except Exception:
+        pass
+    return {"composite": None, "level": "unknown", "components": [], "weighting": None,
+            "validated": None, "source": "representative"}
+
+
+def recommendation_changes(conn: duckdb.DuckDBPyConnection | None) -> dict[str, Any]:
+    try:
+        from . import recommendation_log
+
+        rc = recommendation_log.compute_recommendation_changes(conn)
+        if rc is not None:
+            return rc
+    except Exception:
+        pass
+    return {"items": [], "source": "representative"}
+
+
+def research_radar(conn: duckdb.DuckDBPyConnection | None) -> dict[str, Any]:
+    try:
+        from . import research_radar_live
+
+        rr = research_radar_live.compute_research_radar(conn)
+        if rr is not None:
+            return rr
+    except Exception:
+        pass
+    return {"fetchedAt": None, "items": [], "source": "representative"}
+
+
+def attach_rationale(ticker: str, rationale: str) -> bool:
+    from . import recommendation_log
+
+    with db.LOCK:
+        conn = db.get_main_conn(create=False)
+        if conn is None:
+            return False
+        return recommendation_log.attach_rationale(conn, ticker, rationale)
+
+
 # ---------------------------------------------------------------- assembly
 
 def build_dashboard() -> dict[str, Any]:
@@ -383,6 +430,9 @@ def build_dashboard() -> dict[str, Any]:
         data_health_block = data_health(conn)
         track_record_block = track_record(conn)
         notes_block = notes(conn)
+        stress_block = stress(conn)
+        rec_changes_block = recommendation_changes(conn)
+        research_block = research_radar(conn)
         meta_block = meta(conn)
 
     # Bull/bear synthesis composes already-assembled sections (in-memory only).
@@ -414,4 +464,7 @@ def build_dashboard() -> dict[str, Any]:
         "dataHealth": data_health_block,
         "trackRecord": track_record_block,
         "notes": notes_block,
+        "stress": stress_block,
+        "recommendationChanges": rec_changes_block,
+        "researchRadar": research_block,
     }

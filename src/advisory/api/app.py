@@ -54,6 +54,10 @@ class NoteIn(BaseModel):
     ticker: str | None = Field(default=None, max_length=12)
 
 
+class RationaleIn(BaseModel):
+    rationale: str = Field(min_length=1)
+
+
 @app.get("/api/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
@@ -110,4 +114,12 @@ def read_note(note_id: str) -> dict[str, Any]:
     """Mark a note read, then refresh."""
     if not live.mark_note_read(note_id):
         raise HTTPException(status_code=404, detail="Note not found")
+    return live.build_dashboard()
+
+
+@app.post("/api/recommendations/{ticker}/rationale")
+def add_rationale(ticker: str, body: RationaleIn) -> dict[str, Any]:
+    """Attach a rationale to a ticker's most recent recommendation change, then refresh."""
+    if not live.attach_rationale(ticker.upper(), body.rationale):
+        raise HTTPException(status_code=404, detail="No recorded change for that ticker")
     return live.build_dashboard()
