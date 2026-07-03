@@ -268,9 +268,14 @@ Present on an `assets[]` item **only when a Kronos model has been promoted**
   "forecast": [ { "h": 1, "p5": -0.03, "p50": 0.001, "p95": 0.03 },
                 { "h": 10, "p5": -0.149, "p50": 0.012, "p95": 0.166 } ],
   "p5": -0.149, "p50": 0.012, "p95": 0.166,
-  "pUp": 0.55, "pVolShift": 0.25, "validated": true
+  "pUp": 0.55, "pVolShift": 0.25, "validated": true,
+  "liveEdge": false     // true = a current, un-ingested (unverified) bar was appended for inference
 }
 ```
+Two backends can populate this (same shape): the block-bootstrap (computed on the
+GET path) or the **pretrained Kronos-base transformer** (precomputed out-of-band
+by `scripts/kronos_forecast.py` into a cache; `liveEdge` flags whether the current
+yfinance bar was used). The frontend renders both identically.
 **Show**
 - Overlay a **second labelled band/line ("Kronos")** on the forecast fan chart
   (feature #3) so the analog and Kronos forecasts are visually comparable; and/or
@@ -283,6 +288,7 @@ export interface KronosForecast {
   forecast: ForecastPoint[]
   p5: number; p50: number; p95: number
   pUp: number; pVolShift: number | null; validated: boolean
+  liveEdge?: boolean
 }
 // extend Asset: kronos?: KronosForecast
 ```

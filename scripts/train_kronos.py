@@ -28,13 +28,43 @@ from src.advisory.layer_kronos.forecaster import train_kronos  # noqa: E402
 def main() -> None:
     ap = argparse.ArgumentParser(description="Train a Kronos forecaster candidate")
     ap.add_argument("--mode", default="v7_lite", choices=("v7_lite", "v7_institutional"))
+    ap.add_argument("--backend", default="block_bootstrap", choices=("block_bootstrap", "transformer"),
+                    help="Model backend to register as the candidate")
     ap.add_argument("--training-end", type=lambda s: date.fromisoformat(s), default=date.today())
     ap.add_argument("--calib-ticker", default="SPY", help="Return series used for the calibration forecast")
+    ap.add_argument("--samples", type=int, default=16, help="transformer: stochastic samples per forecast")
+    ap.add_argument("--hf-model", default="NeoQuasar/Kronos-base")
+    ap.add_argument("--hf-tokenizer", default="NeoQuasar/Kronos-Tokenizer-base")
     ap.add_argument("--output", type=Path, default=None)
     args = ap.parse_args()
 
     conn = duckdb.connect(str(settings.main_db_path))
     bootstrap_schema(conn)
+
+    output = args.output or Path("models") / f"kronos_{args.mode}_{args.training_end:%Y%m%d}.pkl"
+
+    if args.backend == "transformer":
+        from src.advisory.layer_kronos.transformer import KronosTransformerForecaster
+
+        forecaster = KronosTransformerForecaster(
+            hf_model=args.hf_model, hf_tokenizer=args.hf_tokenizer,
+            samples=args.samples, training_end=args.training_end, app_mode=args.mode,
+        )
+        forecaster.save(output)
+        model_id = output.stem
+        conn.execute(
+            "INSERT OR REPLACE INTO hmm_model_registry "
+            "(model_id, app_mode, trained_at, training_window_end, validation_status, artifact_path) "
+            "VALUES (?, ?, now(), ?, ?, ?)",
+            [model_id, args.mode, args.training_end, "candidate", str(output)],
+        )
+        print(f"[OK] Registered Kronos transformer candidate {model_id} "
+              f"({args.hf_model}, samples={args.samples})")
+        print(f"     Artifact (config marker): {output}")
+        print(f"     Next: python scripts/validate_kronos_candidate.py --candidate {output} --promote-on-pass")
+        print("     Then: python scripts/kronos_forecast.py   (populate the forecast cache)")
+        conn.close()
+        return
 
     rows = conn.execute(
         "SELECT feature_value FROM features_pit WHERE ticker = ? AND feature_name = 'ret_1d' "

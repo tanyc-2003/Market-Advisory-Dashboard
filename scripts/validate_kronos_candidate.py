@@ -34,7 +34,7 @@ from src.advisory.layer0_validation.report import (  # noqa: E402
 )
 from src.advisory.layer0_validation.walk_forward import WalkForwardCV  # noqa: E402
 from src.advisory.layer1_market_state.registry import promote_candidate  # noqa: E402
-from src.advisory.layer_kronos.forecaster import KronosForecaster  # noqa: E402
+from src.advisory.layer_kronos.forecaster import load_forecaster  # noqa: E402
 
 
 def main() -> None:
@@ -46,9 +46,10 @@ def main() -> None:
 
     if not args.candidate.exists():
         raise SystemExit(f"Candidate not found: {args.candidate}")
-    # Loaded to assert the artifact is a valid forecaster; its drift signal is
-    # what the walk-forward tests (sign of point_forecast == sign of trailing drift).
-    KronosForecaster.load(args.candidate)
+    # Assert the artifact loads as a valid forecaster (either backend). The gate
+    # tests a tractable directional (trailing-drift) signal via walk-forward; a
+    # full transformer backtest is the rigorous alternative (see the Kronos repo).
+    load_forecaster(args.candidate)
 
     store = FeatureStore(settings.main_db_path, settings.cache_dir)
     audit_log = AuditLog(settings.audit_db_path)

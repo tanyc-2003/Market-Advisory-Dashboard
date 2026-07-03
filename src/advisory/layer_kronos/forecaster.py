@@ -122,6 +122,17 @@ class KronosForecaster:
         )
 
 
+def load_forecaster(path: Path):
+    """Load whichever backend the artifact declares (block-bootstrap or transformer)."""
+    with open(path, "rb") as fh:
+        art = pickle.load(fh)
+    if art.get("kind") == "kronos_transformer":
+        from .transformer import KronosTransformerForecaster
+
+        return KronosTransformerForecaster.from_artifact(art)
+    return KronosForecaster.load(path)
+
+
 def train_kronos(
     returns: np.ndarray,
     realized_fwd_10d: np.ndarray,

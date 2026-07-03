@@ -38,6 +38,7 @@ from src.advisory.data_infra.feature_store import FeatureStore  # noqa: E402
 from src.advisory.data_infra.features import (  # noqa: E402
     compute_ohlcv_features,
     hy_spread_roc,
+    ohlcv_pit_rows,
     vix_percentile_from_close,
     yield_curve_slope,
 )
@@ -177,6 +178,12 @@ def main() -> None:
             equity_features, source="yfinance", version="v1"
         )
 
+        # Persist raw OHLCV bars as PIT features (px_*) — the archive the Kronos
+        # transformer reconstructs its candlesticks from.
+        n_px = store.write_features(
+            ohlcv_pit_rows(ohlcv), source="yfinance", version="v1"
+        )
+
         # ------------------------------------------------------------------
         # 2. VIX (volatility regime feature)
         # ------------------------------------------------------------------
@@ -249,6 +256,7 @@ def main() -> None:
         # Summary
         # ------------------------------------------------------------------
         print(f"[OK] Equity feature rows:  {n_equity:,}")
+        print(f"     OHLCV (px_*) rows:    {n_px:,}")
         print(f"     VIX feature rows:     {n_vix:,}")
         print(f"     Macro feature rows:   {n_macro:,}")
         print(

@@ -6,9 +6,6 @@ are written into ``features_pit`` via :meth:`FeatureStore.write_features`.
 """
 from __future__ import annotations
 
-from datetime import date
-from typing import Iterable
-
 import numpy as np
 import polars as pl
 import structlog
@@ -153,6 +150,33 @@ def _empty_features() -> pl.DataFrame:
             "feature_value": pl.Float64,
         }
     )
+
+
+PX_COLUMNS: tuple[str, ...] = ("open", "high", "low", "close", "volume")
+
+
+def ohlcv_pit_rows(ohlcv: pl.DataFrame) -> pl.DataFrame:
+    """Persist raw OHLCV bars as PIT features (``px_open`` … ``px_volume``).
+
+    Kept in ``features_pit`` so the Kronos transformer reconstructs its input
+    candlesticks through the same point-in-time path as every other layer —
+    ``knowledge_date == effective_date`` (a daily bar is known at its own close).
+    """
+    if "ticker" not in ohlcv.columns or "effective_date" not in ohlcv.columns:
+        raise ValueError("ohlcv_pit_rows needs `ticker` and `effective_date` columns")
+    rows: list[pl.DataFrame] = []
+    for ticker, group in ohlcv.sort(["ticker", "effective_date"]).group_by(
+        "ticker", maintain_order=True
+    ):
+        tk = ticker[0] if isinstance(ticker, tuple) else ticker
+        df = group.sort("effective_date")
+        dates = df["effective_date"]
+        for col in PX_COLUMNS:
+            if col in df.columns:
+                rows.append(_long(tk, dates, f"px_{col}", df[col].to_numpy().astype(float)))
+    if not rows:
+        return _empty_features()
+    return pl.concat(rows).drop_nulls(subset=["feature_value"])
 
 
 def vix_percentile_from_close(

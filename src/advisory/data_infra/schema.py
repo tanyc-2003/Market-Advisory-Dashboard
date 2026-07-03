@@ -220,6 +220,19 @@ CREATE TABLE IF NOT EXISTS recommendation_changes (
 );
 """
 
+# Kronos forecast cache (Tier 3 #9). The transformer is too slow for the GET
+# path, so forecasts are precomputed out-of-band (scripts/kronos_forecast.py)
+# and the API reads this table. One latest row per ticker.
+KRONOS_FORECAST_CACHE_DDL = """
+CREATE TABLE IF NOT EXISTS kronos_forecast_cache (
+    ticker      VARCHAR PRIMARY KEY,
+    as_of       DATE,
+    payload     JSON      NOT NULL,
+    live_edge   BOOLEAN   NOT NULL DEFAULT FALSE,
+    computed_at TIMESTAMP NOT NULL DEFAULT now()
+);
+"""
+
 # arXiv research radar cache (Tier 3 #8).
 RESEARCH_CACHE_DDL = """
 CREATE TABLE IF NOT EXISTS research_cache (
@@ -273,6 +286,7 @@ def bootstrap_schema(conn: duckdb.DuckDBPyConnection) -> None:
         NOTES_DDL,
         RECOMMENDATION_CHANGES_DDL,
         RESEARCH_CACHE_DDL,
+        KRONOS_FORECAST_CACHE_DDL,
     ):
         for statement in ddl.strip().split(";"):
             stmt = statement.strip()
