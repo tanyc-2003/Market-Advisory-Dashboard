@@ -203,6 +203,37 @@ CREATE TABLE IF NOT EXISTS notes (
 );
 """
 
+# Decision change-log ("trading-as-git", Tier 2 #5). Append-only, hashed chain
+# of material changes to a per-ticker recommendation.
+RECOMMENDATION_CHANGES_DDL = """
+CREATE TABLE IF NOT EXISTS recommendation_changes (
+    change_id    VARCHAR PRIMARY KEY,
+    ticker       VARCHAR   NOT NULL,
+    changed_at   TIMESTAMP NOT NULL DEFAULT now(),
+    field        VARCHAR   NOT NULL,
+    prev_value   VARCHAR,
+    new_value    VARCHAR,
+    prev_hash    VARCHAR,
+    new_hash     VARCHAR   NOT NULL,
+    rationale    VARCHAR,
+    guard_passed BOOLEAN   NOT NULL DEFAULT TRUE
+);
+"""
+
+# arXiv research radar cache (Tier 3 #8).
+RESEARCH_CACHE_DDL = """
+CREATE TABLE IF NOT EXISTS research_cache (
+    entry_id   VARCHAR PRIMARY KEY,
+    topic      VARCHAR NOT NULL,
+    title      VARCHAR NOT NULL,
+    authors    VARCHAR,
+    published  DATE,
+    url        VARCHAR,
+    summary    TEXT,
+    fetched_at TIMESTAMP NOT NULL DEFAULT now()
+);
+"""
+
 
 def _add_app_mode_columns(conn: duckdb.DuckDBPyConnection) -> None:
     """Add the V7_lite ``app_mode`` column to the three audit tables.
@@ -240,6 +271,8 @@ def bootstrap_schema(conn: duckdb.DuckDBPyConnection) -> None:
         CBOE_PC_RATIO_DDL,
         SYSTEM_PREDICTIONS_DDL,
         NOTES_DDL,
+        RECOMMENDATION_CHANGES_DDL,
+        RESEARCH_CACHE_DDL,
     ):
         for statement in ddl.strip().split(";"):
             stmt = statement.strip()

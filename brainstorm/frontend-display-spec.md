@@ -19,9 +19,9 @@ existing reliability-diagram / status-dot patterns).
 | Forecast fan + prob tiles | ✅ built | `assets[].forecast/pUp/pVolShift` | ⬜ to build |
 | Bull/bear case synthesis | ✅ built | `assets[].case` | ⬜ to build |
 | Notes inbox | ✅ built | `notes` (+ POST) | ⬜ to build (replaces alerts) |
-| Decision change-log | ⬜ backend pending | `recommendationChanges` | ⬜ |
-| Composite stress gauge | ⬜ backend pending | `stress` | ⬜ |
-| arXiv research radar | ⬜ backend pending | `researchRadar` | ⬜ |
+| Decision change-log | ✅ built | `recommendationChanges` (+ POST) | ⬜ to build |
+| Composite stress gauge | ✅ built | `stress` | ⬜ to build |
+| arXiv research radar | ✅ built | `researchRadar` | ⬜ to build |
 | Kronos forecast | ⬜ backend pending (gated) | `assets[].kronos` | ⬜ |
 
 Every built section carries a `source: "live" | "representative"` flag; render a
@@ -172,13 +172,91 @@ export interface NoteItem {
   kind: string; source: string; body: string; read: boolean
 }
 export interface NotesData { unread: number; items: NoteItem[]; source?: string }
+export interface StressComponent { name: string; value: number; weight: number }
+export interface StressData {
+  composite: number | null; level: string
+  components: StressComponent[]; weighting: string | null
+  validated: boolean | null; source?: string
+}
+export interface RecChange {
+  id: string; ticker: string; changedAt: string; field: string
+  prev: string | null; new: string | null; rationale: string | null; guardPassed: boolean
+}
+export interface RecChanges { items: RecChange[]; source?: string }
+export interface Paper {
+  topic: string; title: string; authors: string | null
+  published: string | null; url: string; summary: string
+}
+export interface ResearchRadar { fetchedAt: string | null; items: Paper[]; source?: string }
 // extend Asset: pUp?: number; pVolShift?: number | null; forecast?: ForecastPoint[]; forecastApprox?: boolean; case?: AssetCase
-// extend DashboardData: trackRecord: TrackRecord; dataHealth: DataHealth; notes: NotesData
-// new client fns: postNote(body, ticker?), markNoteRead(id)
+// extend DashboardData: trackRecord, dataHealth, notes, stress, recommendationChanges, researchRadar
+// new client fns: postNote(body, ticker?), markNoteRead(id), postRationale(ticker, rationale)
 ```
 
-## Pending sections (build frontend after their backend lands)
-`recommendationChanges` (change-log timeline), `stress` (0–100 gauge tile with
-displayed weights + heuristic disclosure), `researchRadar` (collapsible paper
-feed), `assets[].kronos` (second fan band, only when validated). See
-[tier-2-spec.md](tier-2-spec.md) and [tier-3-spec.md](tier-3-spec.md).
+---
+
+## 6. Composite stress gauge  →  header tile / stress strip
+
+**Payload**
+```jsonc
+"stress": {
+  "composite": 61.1, "level": "elevated",
+  "components": [ { "name": "VIX percentile", "value": 38.1, "weight": 0.35 },
+                  { "name": "Realised vol (avg)", "value": 82.4, "weight": 0.25 } ],
+  "weighting": "heuristic — fixed weights …, not a validated model",
+  "validated": false, "source": "live"
+}
+```
+**Show**
+- A semicircular **0–100 gauge** (needle + band colour by `level`:
+  calm/normal/elevated/stressed) in the Overview header strip or a stress row.
+- Expand to list `components` (name · 0–100 value · weight). **Always render the
+  `weighting` disclosure inline** — this is a heuristic, never `validated`.
+
+---
+
+## 7. Decision change-log  →  "What changed" timeline
+
+**Payload**
+```jsonc
+"recommendationChanges": {
+  "items": [ { "id": "…", "ticker": "MSFT", "changedAt": "…", "field": "verdict",
+               "prev": "neutral", "new": "lean short",
+               "rationale": null, "guardPassed": true } ],
+  "source": "live"
+}
+```
+**Endpoint:** `POST /api/recommendations/{ticker}/rationale` body `{ rationale }`
+(404 if the ticker has no recorded change) → returns refreshed dashboard.
+
+**Show**
+- A reverse-chron **timeline**: each row = ticker · field · `prev → new` ·
+  timestamp; show a small red flag when `guardPassed` is false.
+- An inline **add-rationale** input per ticker (like the journal-close editor)
+  posting to the endpoint (the "commit message"). Place under Validation or a
+  small view.
+
+---
+
+## 8. arXiv research radar  →  collapsible "Research" feed
+
+**Payload**
+```jsonc
+"researchRadar": {
+  "fetchedAt": "2026-06-29T…",
+  "items": [ { "topic": "position sizing", "title": "…", "authors": "…",
+               "published": "2026-06-20", "url": "https://arxiv.org/abs/…",
+               "summary": "…" } ],
+  "source": "live"
+}
+```
+**Show**
+- A **collapsible feed** (secondary placement — sidebar or a "Research" expander):
+  each item = topic chip + title (linking to `url`, opens new tab) + authors +
+  published date; summary on expand. Show `fetchedAt`. Purely informational.
+- Cache is refreshed out-of-band (`scripts/research_radar.py`); if empty, show
+  "Radar not refreshed yet."
+
+## Still pending (build frontend after its backend lands)
+`assets[].kronos` — a second fan band on the forecast chart, shown only when
+validated. See [tier-3-spec.md](tier-3-spec.md) #9.
