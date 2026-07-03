@@ -426,6 +426,13 @@ def build_dashboard() -> dict[str, Any]:
         journal_view, _ = journal(conn)
         market_state_block = market_state(conn)
         asset_rows = assets(conn)
+        # Kronos forecasts attach to assets only when a promoted (validated) model exists.
+        try:
+            from . import kronos_forecast_live
+
+            kronos_forecast_live.attach_to_assets(conn, asset_rows)
+        except Exception:
+            pass
         calibration_block = calibration(conn)
         data_health_block = data_health(conn)
         track_record_block = track_record(conn)

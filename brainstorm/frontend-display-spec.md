@@ -22,7 +22,7 @@ existing reliability-diagram / status-dot patterns).
 | Decision change-log | ✅ built | `recommendationChanges` (+ POST) | ⬜ to build |
 | Composite stress gauge | ✅ built | `stress` | ⬜ to build |
 | arXiv research radar | ✅ built | `researchRadar` | ⬜ to build |
-| Kronos forecast | ⬜ backend pending (gated) | `assets[].kronos` | ⬜ |
+| Kronos forecast | ✅ built (validated-only) | `assets[].kronos` (only when promoted) | ⬜ to build |
 
 Every built section carries a `source: "live" | "representative"` flag; render a
 subtle "representative data" hint when not live, exactly like the existing
@@ -257,6 +257,36 @@ export interface ResearchRadar { fetchedAt: string | null; items: Paper[]; sourc
 - Cache is refreshed out-of-band (`scripts/research_radar.py`); if empty, show
   "Radar not refreshed yet."
 
-## Still pending (build frontend after its backend lands)
-`assets[].kronos` — a second fan band on the forecast chart, shown only when
-validated. See [tier-3-spec.md](tier-3-spec.md) #9.
+---
+
+## 9. Kronos forecast  →  second band on the forecast fan (validated-only)
+
+Present on an `assets[]` item **only when a Kronos model has been promoted**
+(passed Layer 0); absent otherwise — render nothing when missing.
+```jsonc
+"kronos": {
+  "forecast": [ { "h": 1, "p5": -0.03, "p50": 0.001, "p95": 0.03 },
+                { "h": 10, "p5": -0.149, "p50": 0.012, "p95": 0.166 } ],
+  "p5": -0.149, "p50": 0.012, "p95": 0.166,
+  "pUp": 0.55, "pVolShift": 0.25, "validated": true
+}
+```
+**Show**
+- Overlay a **second labelled band/line ("Kronos")** on the forecast fan chart
+  (feature #3) so the analog and Kronos forecasts are visually comparable; and/or
+  a compact "Kronos: P↑ / Δvol" pair beside the analog tiles.
+- Only render when `assets[].kronos` exists. A promoted Kronos means it cleared
+  Layer 0, so no research-preview banner is needed (unlike the disclosed panels).
+
+```ts
+export interface KronosForecast {
+  forecast: ForecastPoint[]
+  p5: number; p50: number; p95: number
+  pUp: number; pVolShift: number | null; validated: boolean
+}
+// extend Asset: kronos?: KronosForecast
+```
+
+Populate the model out-of-band: `python scripts/train_kronos.py` then
+`python scripts/validate_kronos_candidate.py --candidate models/kronos_v7_lite_<date>.pkl --promote-on-pass`.
+Until promoted, the field is simply absent and nothing renders.
