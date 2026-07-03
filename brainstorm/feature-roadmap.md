@@ -2,7 +2,7 @@
 
 > Planning note, not a spec. Draws on TradingAgents, quant-mind, OpenAlice,
 > Kronos and World Monitor as **references for patterns**, mapped onto *this*
-> dashboard's architecture and philosophy. Not committed as a PR.
+> dashboard's architecture and philosophy.
 
 ## How I picked (selection criteria)
 
