@@ -85,3 +85,89 @@ export function num(v: number | null | undefined): string {
   if (v === null || v === undefined) return '—'
   return v.toFixed(2)
 }
+
+/** Format a fraction as a whole-percent probability, em dash for null. */
+export function fmtProb(v: number | null | undefined): string {
+  return v === null || v === undefined ? '—' : (v * 100).toFixed(0) + '%'
+}
+
+/** Feed-health status → dot colour. */
+export function healthDotColor(s: string): string {
+  return { fresh: colors.green, stale: colors.amber, missing: colors.red }[s] ?? colors.muted
+}
+
+/** Stress level → gauge colour. */
+export function stressColor(level: string): string {
+  return (
+    { calm: colors.green, normal: colors.blue, elevated: colors.amber, stressed: colors.red }[level] ??
+    colors.blue
+  )
+}
+
+/** P(up) → colour: green when confidently up, red when confidently down, neutral otherwise. */
+export function pUpColor(p: number): string {
+  return p >= 0.58 ? colors.green : p <= 0.45 ? colors.red : colors.text3
+}
+
+/** Bull/bear verdict → colour. */
+export function verdictColor(v: string): string {
+  return { 'lean long': colors.green, neutral: colors.text3, 'lean short': colors.red }[v] ?? colors.text3
+}
+
+/** Notes-inbox kind → chip colour. */
+export function kindColor(k: string): string {
+  return { outcome: colors.green, system: colors.blue, alert: colors.amber, user: colors.text3 }[k] ?? colors.text3
+}
+
+/** A colour + its low-alpha background/border variants, for pill styling. */
+export function alphaVariants(hex: string): { fg: string; bg: string; border: string } {
+  return { fg: hex, bg: hex + '1a', border: hex + '44' }
+}
+
+export interface ForecastBand {
+  h: number
+  p5: number
+  p50: number
+  p95: number
+}
+
+export interface FanGeometry {
+  zeroY: string
+  linePoints: string
+  bandPath: string
+  dots: Array<{ x: string; y: string }>
+}
+
+/**
+ * Build the SVG geometry for the forecast fan (median path + p5–p95 band),
+ * ported verbatim from the design source so the picture is identical.
+ */
+export function buildFan(forecast: ForecastBand[]): FanGeometry {
+  const w = 760
+  const h = 150
+  const padL = 20
+  const padR = 20
+  const top = 14
+  const bot = 30
+  const innerH = h - top - bot
+  const maxH = 10
+  const lo = -0.16
+  const hi = 0.2
+  const xOf = (hVal: number) => padL + (hVal / maxH) * (w - padL - padR)
+  const yOf = (v: number) => {
+    let p = (v - lo) / (hi - lo)
+    p = Math.max(0, Math.min(1, p))
+    return top + (1 - p) * innerH
+  }
+  const zeroY = yOf(0)
+  const dots = forecast.map((f) => ({ x: xOf(f.h).toFixed(1), y: yOf(f.p50).toFixed(1) }))
+  const linePoints = forecast.map((f) => xOf(f.h).toFixed(1) + ',' + yOf(f.p50).toFixed(1)).join(' ')
+  const top5 = forecast.map((f) => xOf(f.h).toFixed(1) + ',' + yOf(f.p95).toFixed(1)).join(' L ')
+  const bot5 = forecast
+    .slice()
+    .reverse()
+    .map((f) => xOf(f.h).toFixed(1) + ',' + yOf(f.p5).toFixed(1))
+    .join(' L ')
+  const bandPath = 'M ' + top5 + ' L ' + bot5 + ' Z'
+  return { zeroY: zeroY.toFixed(1), linePoints, bandPath, dots }
+}

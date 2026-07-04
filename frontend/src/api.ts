@@ -16,6 +16,12 @@ import type {
   OpenTrade,
   ClosedTrade,
   CalRow,
+  DataHealth,
+  TrackRecordData,
+  NotesData,
+  Stress,
+  RecommendationChanges,
+  ResearchRadar,
 } from './data'
 
 export interface Gate {
@@ -93,6 +99,13 @@ export interface DashboardData {
   journal: JournalData
   calibration: CalibrationData
   validation: ValidationSummary
+  // enhancement sections (Tiers 1–3); always present, may be representative
+  dataHealth: DataHealth
+  trackRecord: TrackRecordData
+  notes: NotesData
+  stress: Stress
+  recommendationChanges: RecommendationChanges
+  researchRadar: ResearchRadar
 }
 
 export interface JournalEntryInput {
@@ -146,5 +159,21 @@ export async function closeJournalEntry(id: string, payload: JournalCloseInput):
     body: JSON.stringify(payload),
   })
   if (!res.ok) throw new Error(await errorDetail(res, `Close request failed (${res.status})`))
+  return (await res.json()) as DashboardData
+}
+
+export async function postNote(body: string, ticker?: string | null): Promise<DashboardData> {
+  const res = await fetch(`${BASE}/notes`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ body, ticker: ticker ?? null }),
+  })
+  if (!res.ok) throw new Error(await errorDetail(res, `Add-note request failed (${res.status})`))
+  return (await res.json()) as DashboardData
+}
+
+export async function markNoteRead(id: string): Promise<DashboardData> {
+  const res = await fetch(`${BASE}/notes/${encodeURIComponent(id)}/read`, { method: 'POST' })
+  if (!res.ok) throw new Error(await errorDetail(res, `Mark-read request failed (${res.status})`))
   return (await res.json()) as DashboardData
 }
