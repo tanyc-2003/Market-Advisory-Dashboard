@@ -7,6 +7,8 @@ import {
   closeJournalEntry,
   postNote,
   markNoteRead,
+  addWatchlistTicker,
+  removeWatchlistTicker,
   type DashboardData,
   type JournalEntryInput,
   type JournalCloseInput,
@@ -97,6 +99,34 @@ export default function App() {
       .catch(() => {})
   }, [])
 
+  const handleAddTicker = useCallback(async (ticker: string): Promise<string | null> => {
+    try {
+      const updated = await addWatchlistTicker(ticker)
+      setData(updated)
+      return ticker
+    } catch {
+      return null
+    }
+  }, [])
+
+  const handleRemoveTicker = useCallback((ticker: string) => {
+    removeWatchlistTicker(ticker)
+      .then(setData)
+      .catch(() => {})
+  }, [])
+
+  // While any watchlist ticker is still ingesting, poll until it flips ready/error.
+  const hasPending = !!data?.assets.some((a) => a.pending)
+  useEffect(() => {
+    if (!hasPending) return
+    const id = setInterval(() => {
+      fetchDashboard()
+        .then(setData)
+        .catch(() => {})
+    }, 4000)
+    return () => clearInterval(id)
+  }, [hasPending])
+
   if (loading && !data) {
     return (
       <CenterScreen>
@@ -164,6 +194,8 @@ export default function App() {
               onSelectTicker={setSelectedTicker}
               onAddNote={handleAddNote}
               onMarkNoteRead={handleMarkNoteRead}
+              onAddTicker={handleAddTicker}
+              onRemoveTicker={handleRemoveTicker}
             />
           )}
           {view === 'trackrecord' && <TrackRecordView trackRecord={data.trackRecord} />}
