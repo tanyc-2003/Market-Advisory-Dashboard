@@ -45,6 +45,7 @@ def main() -> None:
     ap.add_argument("--lr", type=float, default=2e-5)
     ap.add_argument("--batch-size", type=int, default=8)
     ap.add_argument("--max-steps", type=int, default=None, help="Cap total steps (smoke runs)")
+    ap.add_argument("--save-every", type=int, default=None, help="Write an intermediate checkpoint every N steps")
     ap.add_argument("--base-model", default="NeoQuasar/Kronos-base")
     ap.add_argument("--tokenizer", default="NeoQuasar/Kronos-Tokenizer-base")
     ap.add_argument("--device", default="cpu")
@@ -69,7 +70,8 @@ def main() -> None:
     result = finetune(
         windows, base_model=args.base_model, tokenizer=args.tokenizer,
         epochs=args.epochs, lr=args.lr, batch_size=args.batch_size,
-        device=args.device, max_steps=args.max_steps, save_dir=str(args.out),
+        device=args.device, max_steps=args.max_steps, save_every=args.save_every,
+        save_dir=str(args.out),
     )
     print(f"[OK] Fine-tune done: {result['steps']} steps, avg loss {result['avg_loss']:.4f}, "
           f"{result['n_windows']} windows.")

@@ -53,7 +53,8 @@ python scripts/kronos_forecast.py
 
 Key `finetune_kronos.py` flags: `--tickers` / `--all-px`, `--lookback`,
 `--predict`, `--stride`, `--epochs`, `--lr`, `--batch-size`, `--max-steps`,
-`--base-model`, `--device` (`cuda` if available), `--out`.
+`--save-every` (intermediate checkpoints), `--base-model` (resume from a prior
+checkpoint), `--device` (`cuda` if available), `--out`.
 
 ## Cost & quality notes
 
@@ -69,6 +70,13 @@ Key `finetune_kronos.py` flags: `--tickers` / `--all-px`, `--lookback`,
   backend: it stays hidden until it clears the Layer 0 walk-forward + deflated
   Sharpe gate. Fine-tuning improves the *forecast*; the gate still decides whether
   it's evidence.
+- **Empirical (CPU, light pass).** A real run — 84 US tickers ingested (~1.05M
+  `px_*` rows), 10,164 windows, 300 steps (~24% of one epoch) at lr 2e-5 — did
+  **not** meaningfully shift the raw forecasts: NVDA marginally less bearish
+  (−8.1% → −5.3% 10d), GOOGL slightly worse (−26.8% → −33.5%), AAPL flat, `pUp`
+  still ≈ 0. The loss barely moved (~3.4 → ~3.0, noisy). Meaningful US-adaptation
+  needs **many epochs over the broad corpus on a GPU**; the pipeline supports
+  resuming (`--base-model models/kronos_ft_us`) to accumulate steps toward that.
 
 ## What was verified in-repo
 

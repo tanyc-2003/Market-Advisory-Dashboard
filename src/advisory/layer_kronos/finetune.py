@@ -86,9 +86,14 @@ def finetune(
     device: str = "cpu",
     max_steps: int | None = None,
     save_dir: str | None = None,
+    save_every: int | None = None,
     log: Callable[[str], None] = print,
 ) -> dict[str, Any]:
-    """Fine-tune the Kronos predictor on the given windows; optionally save it."""
+    """Fine-tune the Kronos predictor on the given windows; optionally save it.
+
+    ``save_every`` writes an intermediate checkpoint every N steps so a long CPU
+    run that is interrupted still leaves a usable model behind.
+    """
     import torch
     from torch.utils.data import DataLoader, TensorDataset
 
@@ -96,6 +101,10 @@ def finetune(
 
     if not windows:
         raise SystemExit("No training windows — is the px_* OHLCV archive populated?")
+
+    def _save():
+        os.makedirs(save_dir, exist_ok=True)
+        model.save_pretrained(save_dir)
 
     tok = KronosTokenizer.from_pretrained(tokenizer).to(device)
     tok.eval()
@@ -123,13 +132,15 @@ def finetune(
             total += float(loss.item())
             if step % 20 == 0 or (max_steps and step <= 5):
                 log(f"  step {step}  loss {loss.item():.4f}")
+            if save_dir and save_every and step % save_every == 0:
+                _save()
+                log(f"  checkpoint saved at step {step}")
             if max_steps and step >= max_steps:
                 break
         if max_steps and step >= max_steps:
             break
 
     if save_dir:
-        os.makedirs(save_dir, exist_ok=True)
-        model.save_pretrained(save_dir)
+        _save()
         log(f"Saved fine-tuned checkpoint to {save_dir}")
     return {"steps": step, "avg_loss": total / max(step, 1), "n_windows": len(windows)}
