@@ -93,6 +93,26 @@ checkpoint), `--device` (`cuda` if available), `--out`.
   training on de-trended returns, then (c) the Layer 0 walk-forward gate to decide
   if the calibrated signal is actually evidence. The raw shift is real; promotion
   still has to be earned.
+- **Adjudication (does it earn promotion?) — no.** Two independent checks on the
+  GPU fine-tune both say *keep it gated*:
+  - *Calibration* neutralised the bull drift with a per-ticker negative bias, but
+    MSFT hit the ±10% cap (`bias=-0.10`) — the model's drift exceeds what
+    calibration can remove.
+  - *Shipped Layer 0 gate* (trailing-drift proxy): **FAIL** — WF Sharpe 0.135
+    (below floor), deflated Sharpe 0.0 against the 2000-trial audit floor.
+  - *Model-specific directional backtest* (the rigorous test — 10 tickers, 170
+    ticker-dates, 10d horizon): the fine-tune **did not add skill**. The
+    information coefficient (corr of forecast vs realised fwd return) *fell*
+    +0.271 → +0.190, and that comparison is stacked in the fine-tune's favour
+    (base is out-of-sample, fine-tuned is in-sample). Its higher hit-rate (0.58 vs
+    0.51) is beta — it goes long 57% of the time in a market that averaged
+    +2.3%/10d. Sign-following either model (~1.0%) **loses to buy-and-hold**
+    (+2.3%). No tradable directional edge.
+
+  Conclusion: the GPU fine-tune produces a real, visible re-centring of the
+  forecasts but **no evidence-grade skill**, so it stays hidden behind Layer 0 —
+  the system working as designed. A clean time-split OOS fine-tuned IC would only
+  be lower than the in-sample 0.190, so it would harden, not overturn, this.
 
 ## What was verified in-repo
 

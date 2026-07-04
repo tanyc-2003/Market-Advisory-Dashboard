@@ -35,6 +35,7 @@ def main() -> None:
     ap.add_argument("--samples", type=int, default=16, help="transformer: stochastic samples per forecast")
     ap.add_argument("--hf-model", default="NeoQuasar/Kronos-base")
     ap.add_argument("--hf-tokenizer", default="NeoQuasar/Kronos-Tokenizer-base")
+    ap.add_argument("--device", default="cpu", help="transformer: 'cuda' to calibrate/serve on GPU")
     ap.add_argument("--no-calibrate", action="store_true",
                     help="transformer: skip PIT calibration of bias / band width")
     ap.add_argument("--calib-dates", type=int, default=6,
@@ -53,7 +54,7 @@ def main() -> None:
         from src.advisory.layer_kronos.transformer import KronosTransformerForecaster
 
         forecaster = KronosTransformerForecaster(
-            hf_model=args.hf_model, hf_tokenizer=args.hf_tokenizer,
+            hf_model=args.hf_model, hf_tokenizer=args.hf_tokenizer, device=args.device,
             samples=args.samples, training_end=args.training_end, app_mode=args.mode,
         )
         if not args.no_calibrate:
