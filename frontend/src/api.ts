@@ -177,3 +177,15 @@ export async function markNoteRead(id: string): Promise<DashboardData> {
   if (!res.ok) throw new Error(await errorDetail(res, `Mark-read request failed (${res.status})`))
   return (await res.json()) as DashboardData
 }
+
+export async function addWatchlistTicker(ticker: string): Promise<DashboardData> {
+  const res = await fetch(`${BASE}/watchlist/${encodeURIComponent(ticker)}`, { method: 'POST' })
+  if (!res.ok) throw new Error(await errorDetail(res, `Add-ticker request failed (${res.status})`))
+  return (await res.json()) as DashboardData
+}
+
+export async function removeWatchlistTicker(ticker: string): Promise<DashboardData> {
+  const res = await fetch(`${BASE}/watchlist/${encodeURIComponent(ticker)}`, { method: 'DELETE' })
+  if (!res.ok) throw new Error(await errorDetail(res, `Remove-ticker request failed (${res.status})`))
+  return (await res.json()) as DashboardData
+}

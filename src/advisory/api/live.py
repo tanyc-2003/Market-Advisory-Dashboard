@@ -414,6 +414,41 @@ def attach_rationale(ticker: str, rationale: str) -> bool:
         return recommendation_log.attach_rationale(conn, ticker, rationale)
 
 
+# ---------------------------------------------------------------- watchlist (dynamic)
+
+def add_watchlist(ticker: str) -> str:
+    """Add a ticker to the watchlist (``pending``) and kick off its async ingest.
+
+    Returns the normalised symbol; raises ``ValueError`` on an invalid one.
+    """
+    from . import analogs_live, watchlist_live
+
+    t = ticker.strip().upper()
+    if not watchlist_live.valid_ticker(t):
+        raise ValueError(f"Invalid ticker symbol: {ticker!r}")
+    with db.LOCK:
+        conn = db.get_main_conn(create=True)
+        assert conn is not None  # create=True guarantees a connection
+        watchlist_live.add(conn, t)
+    analogs_live.invalidate_cache()
+    watchlist_live.start_ingest(t)
+    return t
+
+
+def remove_watchlist(ticker: str) -> bool:
+    """Remove a ticker from the watchlist. Returns False if it wasn't present."""
+    from . import analogs_live, watchlist_live
+
+    with db.LOCK:
+        conn = db.get_main_conn(create=False)
+        if conn is None:
+            return False
+        ok = watchlist_live.remove(conn, ticker.strip().upper())
+    if ok:
+        analogs_live.invalidate_cache()
+    return ok
+
+
 # ---------------------------------------------------------------- assembly
 
 def build_dashboard() -> dict[str, Any]:

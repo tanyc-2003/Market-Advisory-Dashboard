@@ -51,6 +51,17 @@ _LOCK = threading.Lock()
 _cache: dict[str, Any] = {"key": None, "value": None}
 
 
+def invalidate_cache() -> None:
+    """Drop the memoised watchlist so the next request recomputes it.
+
+    Called when the watchlist set changes (a ticker added/ingested/removed) so a
+    same-day edit is reflected without waiting for a new feature snapshot date.
+    """
+    with _LOCK:
+        _cache["key"] = None
+        _cache["value"] = None
+
+
 def _ticker_history(conn: duckdb.DuckDBPyConnection, ticker: str, as_of=None):
     """Wide per-ticker feature history. ``as_of`` (a date) caps the rows to
     ``effective_date <= as_of`` so predictions can be computed point-in-time."""
@@ -238,8 +249,34 @@ def _asset(conn, ticker: str, sector: str, ms_engine, state_map, current_state) 
     return asset
 
 
+def _pending_asset(ticker: str, sector: str, status: str) -> dict[str, Any]:
+    """A lightweight placeholder row for a ticker that has no computable analogs
+    yet (still ingesting, or ingest failed). The frontend renders it as an
+    ``ingesting…`` / ``unavailable`` state rather than a distribution."""
+    return {
+        "ticker": ticker,
+        "sector": sector,
+        "status": status,
+        "pending": True,
+        "n": 0,
+        "hitRate": 0.0,
+        "conf": "ingesting" if status == "pending" else "unavailable",
+        "p5": 0.0,
+        "p25": 0.0,
+        "p50": 0.0,
+        "p75": 0.0,
+        "p95": 0.0,
+        "disagreement": False,
+        "drivers": [],
+        "sizing": {"raw": 0.0, "std": 0.0, "regime": 0.0, "displayed": 0.0},
+        "pUp": None,
+        "pVolShift": None,
+    }
+
+
 def compute_watchlist(conn: duckdb.DuckDBPyConnection | None) -> list[dict[str, Any]] | None:
-    """Live analog watchlist, or None to fall back to representative data."""
+    """Live analog watchlist over the user-editable ``watchlist`` table, or None
+    to fall back to representative data."""
     if conn is None:
         return None
     try:
@@ -248,7 +285,13 @@ def compute_watchlist(conn: duckdb.DuckDBPyConnection | None) -> list[dict[str, 
         return None
     if not latest or latest[0] is None:
         return None
-    key = str(latest[0])
+
+    from . import watchlist_live
+
+    entries = watchlist_live.list_entries(conn)
+    # Key on the snapshot date AND the watchlist set/status so an in-app add or a
+    # pending -> ready transition busts the cache without a new feature date.
+    key = str(latest[0]) + "|" + ",".join(f"{e['ticker']}:{e['status']}" for e in entries)
 
     with _LOCK:
         if _cache["key"] == key and _cache["value"] is not None:
@@ -256,13 +299,21 @@ def compute_watchlist(conn: duckdb.DuckDBPyConnection | None) -> list[dict[str, 
 
         ms_engine, state_map, current_state = _market_state_path(conn)
         assets: list[dict[str, Any]] = []
-        for ticker, sector in _WATCHLIST:
+        for e in entries:
+            ticker, sector, status = e["ticker"], e["sector"], e["status"]
+            if status != "ready":
+                assets.append(_pending_asset(ticker, sector, status))
+                continue
             try:
                 a = _asset(conn, ticker, sector, ms_engine, state_map, current_state)
             except Exception:
                 a = None
             if a is not None:
+                a["status"] = "ready"
                 assets.append(a)
+            else:
+                # 'ready' but no computable analogs (thin/absent history yet).
+                assets.append(_pending_asset(ticker, sector, "error"))
 
         if not assets:
             return None

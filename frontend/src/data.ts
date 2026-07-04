@@ -66,6 +66,10 @@ export interface Asset {
   forecastApprox?: boolean
   /** Bull/bear synthesis (Tier 2 #4); attached by synthesis_live. */
   case?: CaseData
+  /** watchlist ingest status: 'ready' | 'pending' | 'error'. */
+  status?: string
+  /** true for a placeholder row still ingesting (or failed) — render a stub. */
+  pending?: boolean
 }
 
 export interface Alert {

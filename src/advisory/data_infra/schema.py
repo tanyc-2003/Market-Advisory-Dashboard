@@ -247,6 +247,18 @@ CREATE TABLE IF NOT EXISTS research_cache (
 );
 """
 
+# User-editable watchlist: the set of tickers the dashboard computes analogs for.
+# Replaces the hardcoded default list; a ticker added in-app is ingested
+# asynchronously and its ``status`` walks pending -> ready (or -> error).
+WATCHLIST_DDL = """
+CREATE TABLE IF NOT EXISTS watchlist (
+    ticker   VARCHAR PRIMARY KEY,
+    sector   VARCHAR,
+    status   VARCHAR   NOT NULL DEFAULT 'ready',
+    added_at TIMESTAMP NOT NULL DEFAULT now()
+);
+"""
+
 
 def _add_app_mode_columns(conn: duckdb.DuckDBPyConnection) -> None:
     """Add the V7_lite ``app_mode`` column to the three audit tables.
@@ -287,6 +299,7 @@ def bootstrap_schema(conn: duckdb.DuckDBPyConnection) -> None:
         RECOMMENDATION_CHANGES_DDL,
         RESEARCH_CACHE_DDL,
         KRONOS_FORECAST_CACHE_DDL,
+        WATCHLIST_DDL,
     ):
         for statement in ddl.strip().split(";"):
             stmt = statement.strip()

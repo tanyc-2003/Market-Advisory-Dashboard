@@ -123,3 +123,25 @@ def add_rationale(ticker: str, body: RationaleIn) -> dict[str, Any]:
     if not live.attach_rationale(ticker.upper(), body.rationale):
         raise HTTPException(status_code=404, detail="No recorded change for that ticker")
     return live.build_dashboard()
+
+
+@app.post("/api/watchlist/{ticker}")
+def add_watchlist(ticker: str) -> dict[str, Any]:
+    """Add a ticker to the watchlist and start its async ingest, then refresh.
+
+    The ticker appears immediately in a ``pending`` state; the client polls the
+    dashboard until its status flips to ``ready`` (or ``error``).
+    """
+    try:
+        live.add_watchlist(ticker)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return live.build_dashboard()
+
+
+@app.delete("/api/watchlist/{ticker}")
+def remove_watchlist(ticker: str) -> dict[str, Any]:
+    """Remove a ticker from the watchlist, then refresh."""
+    if not live.remove_watchlist(ticker):
+        raise HTTPException(status_code=404, detail="Ticker not in watchlist")
+    return live.build_dashboard()

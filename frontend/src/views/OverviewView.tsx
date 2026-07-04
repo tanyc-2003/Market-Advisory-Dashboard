@@ -30,6 +30,8 @@ interface OverviewProps {
   onSelectTicker: (t: string) => void
   onAddNote: (body: string, ticker: string | null) => void
   onMarkNoteRead: (id: string) => void
+  onAddTicker: (ticker: string) => Promise<string | null>
+  onRemoveTicker: (ticker: string) => void
 }
 
 const previewChip: CSSProperties = {
@@ -293,8 +295,67 @@ function ForecastFan({ asset }: { asset: Asset }) {
   )
 }
 
-function AssetRow({ a, selected, onSelect }: { a: Asset; selected: boolean; onSelect: () => void }) {
+function RemoveButton({ ticker, onRemove }: { ticker: string; onRemove: (t: string) => void }) {
+  const [h, setH] = useState(false)
+  return (
+    <button
+      title={`Remove ${ticker}`}
+      onClick={(e) => {
+        e.stopPropagation()
+        onRemove(ticker)
+      }}
+      onMouseEnter={() => setH(true)}
+      onMouseLeave={() => setH(false)}
+      style={{
+        position: 'absolute',
+        top: 12,
+        right: 14,
+        width: 20,
+        height: 20,
+        lineHeight: '18px',
+        textAlign: 'center',
+        borderRadius: 5,
+        border: `1px solid ${h ? colors.red : colors.border}`,
+        background: h ? 'rgba(224,108,108,0.12)' : 'transparent',
+        color: h ? colors.red : colors.muted,
+        font: `500 12px/1 ${fonts.mono}`,
+        cursor: 'pointer',
+      }}
+    >
+      ×
+    </button>
+  )
+}
+
+function PendingRow({ a, onRemove }: { a: Asset; onRemove: (t: string) => void }) {
+  const isError = a.status === 'error'
+  return (
+    <div style={{ position: 'relative', padding: '15px 20px', borderBottom: `1px solid ${colors.borderSoft}`, display: 'flex', alignItems: 'center', gap: 14 }}>
+      <div style={{ width: 150, flex: 'none' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ width: 6, height: 6, borderRadius: '50%', flex: 'none', background: isError ? colors.red : colors.amber }} />
+          <span style={{ font: `600 14px/1 ${fonts.mono}`, color: colors.text }}>{a.ticker}</span>
+        </div>
+        <div style={{ marginTop: 4, marginLeft: 16, font: `400 11px/1 ${fonts.sans}`, color: colors.muted }}>{a.sector}</div>
+      </div>
+      {!isError && (
+        <span
+          style={{ width: 13, height: 13, flex: 'none', borderRadius: '50%', border: `2px solid ${colors.borderMid}`, borderTopColor: colors.blue, animation: 'spin .8s linear infinite' }}
+        />
+      )}
+      <span style={{ font: `400 12px/1.4 ${fonts.sans}`, color: isError ? colors.redText : colors.text3 }}>
+        {isError ? 'No data returned for this symbol — check the ticker, then remove or retry.' : 'Ingesting ~10y of history and computing analogs… this row will fill in shortly.'}
+      </span>
+      <RemoveButton ticker={a.ticker} onRemove={onRemove} />
+    </div>
+  )
+}
+
+function AssetRow({ a, selected, onSelect, onRemove }: { a: Asset; selected: boolean; onSelect: () => void; onRemove: (t: string) => void }) {
   const [hover, setHover] = useState(false)
+
+  if (a.pending) return <PendingRow a={a} onRemove={onRemove} />
+
   const hov = !selected && hover
   const l5 = pos(a.p5)
   const l25 = pos(a.p25)
@@ -311,6 +372,7 @@ function AssetRow({ a, selected, onSelect }: { a: Asset; selected: boolean; onSe
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
       style={{
+        position: 'relative',
         padding: '15px 20px',
         borderBottom: `1px solid ${colors.borderSoft}`,
         cursor: 'pointer',
@@ -319,6 +381,7 @@ function AssetRow({ a, selected, onSelect }: { a: Asset; selected: boolean; onSe
         boxShadow: selected ? `inset 3px 0 0 ${colors.blue}` : 'none',
       }}
     >
+      {hov && <RemoveButton ticker={a.ticker} onRemove={onRemove} />}
       <div style={{ display: 'grid', gridTemplateColumns: '150px 84px 1fr 96px 110px', gap: 16, alignItems: 'center' }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -481,6 +544,46 @@ function ChangeLog({ changes }: { changes: RecommendationChanges }) {
   )
 }
 
+function WatchlistAdd({ onAddTicker }: { onAddTicker: (t: string) => Promise<string | null> }) {
+  const [value, setValue] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+
+  const submit = async () => {
+    const t = value.trim().toUpperCase()
+    if (!t || busy) return
+    setBusy(true)
+    setErr(null)
+    const res = await onAddTicker(t)
+    setBusy(false)
+    if (res === null) setErr('Could not add — check the symbol.')
+    else setValue('')
+  }
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 'none' }}>
+      {err && <span style={{ font: `400 10px/1.3 ${fonts.sans}`, color: colors.red, maxWidth: 160, textAlign: 'right' }}>{err}</span>}
+      <input
+        value={value}
+        onChange={(e) => {
+          setValue(e.target.value)
+          setErr(null)
+        }}
+        onKeyDown={(e) => e.key === 'Enter' && submit()}
+        placeholder="Add ticker (e.g. TSLA)"
+        style={{ width: 158, background: colors.cardInner, color: colors.text, border: `1px solid ${err ? colors.red : colors.border}`, borderRadius: 7, padding: '7px 10px', font: `500 12px/1 ${fonts.mono}`, outline: 'none' }}
+      />
+      <button
+        onClick={submit}
+        disabled={busy}
+        style={{ background: colors.blue, color: colors.sidebar, border: 'none', borderRadius: 7, padding: '0 14px', height: 30, font: `600 12px/1 ${fonts.sans}`, cursor: busy ? 'default' : 'pointer', opacity: busy ? 0.6 : 1 }}
+      >
+        {busy ? 'Adding…' : 'Add'}
+      </button>
+    </div>
+  )
+}
+
 export default function OverviewView({
   layers,
   marketState,
@@ -494,8 +597,10 @@ export default function OverviewView({
   onSelectTicker,
   onAddNote,
   onMarkNoteRead,
+  onAddTicker,
+  onRemoveTicker,
 }: OverviewProps) {
-  const selected = assets.find((a) => a.ticker === selectedTicker) ?? assets[0]
+  const selected = assets.find((a) => a.ticker === selectedTicker && !a.pending) ?? assets.find((a) => !a.pending) ?? assets[0]
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
@@ -511,9 +616,12 @@ export default function OverviewView({
       {selected && <ForecastFan asset={selected} />}
 
       <section>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-          <h2 style={sectionLabel}>Layers 2 · 3 · 7 — Watchlist</h2>
-          <span style={{ font: `400 11px/1 ${fonts.sans}`, color: colors.muted }}>Forward 10-day return distribution from historical analogs · select a row to focus sizing</span>
+        <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 6, gap: 16 }}>
+          <div>
+            <h2 style={sectionLabel}>Layers 2 · 3 · 7 — Watchlist</h2>
+            <div style={{ marginTop: 7, font: `400 11px/1 ${fonts.sans}`, color: colors.muted }}>Forward 10-day return distribution from historical analogs · select a row to focus sizing</div>
+          </div>
+          <WatchlistAdd onAddTicker={onAddTicker} />
         </div>
         <div style={{ marginBottom: 14, padding: '7px 11px', borderRadius: 7, background: 'rgba(224,176,74,0.09)', border: '1px solid rgba(224,176,74,0.28)', display: 'flex', alignItems: 'center', gap: 9 }}>
           <span style={{ color: colors.amber, fontSize: 11 }}>▲</span>
@@ -529,7 +637,7 @@ export default function OverviewView({
             <span style={{ textAlign: 'right' }}>Hit rate · conf.</span>
           </div>
           {assets.map((a) => (
-            <AssetRow key={a.ticker} a={a} selected={a.ticker === (selected?.ticker ?? '')} onSelect={() => onSelectTicker(a.ticker)} />
+            <AssetRow key={a.ticker} a={a} selected={!a.pending && a.ticker === (selected?.ticker ?? '')} onSelect={() => onSelectTicker(a.ticker)} onRemove={onRemoveTicker} />
           ))}
         </div>
       </section>
