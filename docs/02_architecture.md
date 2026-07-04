@@ -77,7 +77,9 @@ Every arrow into a downstream layer goes through the Layer 0 gate. The gate is n
 | 8 (journal) | data_infra (DuckDB) |
 | 9 (calibration) | 8 (journal as polars frame) |
 | 10 (sizing) | 2 (analog returns), 1 (state_uncertainty), 2 (overlap_pct) |
+| kronos (forecaster, additive) | `features_pit` returns / `px_*` archive; validated-only via the HMM-style registry + Layer 0 gate |
 | dashboard (Phase 12) | DuckDB readers + every layer's persisted `ValidationReport` |
+| enhancement sections (Tiers 1–3) | compose live layer outputs + their own stores; each disclosed/gated per [11_dashboard_sections.md](11_dashboard_sections.md) |
 | layer_llm (Phase 13, optional) | dashboard packet builder; gated by `LLM_ENABLED` |
 
 Note the implementation order for phases 6/7 inverts the layer numbering. The architecture (§21) requires Layer 6 to be built first so Layer 5 can be a clean float-only dependency. The Layer 2 engine accepts an optional `friction_monitor` constructor argument and pulls `vol_z` from it via `monitor.get_vol_z(ticker)` — no direct import of Layer 5 from Layer 2.
@@ -101,10 +103,15 @@ Two DuckDB files:
 
 | File | Tables | Purpose |
 |---|---|---|
-| `data/db/main.duckdb` | `features_pit`, `delisted_tickers`, `paper_trade_performance`, `validation_reports`, `journal_entries`, `llm_cache` | feature store + trader journal + LLM cache |
+| `data/db/main.duckdb` | `features_pit` (incl. `px_*` candlestick archive), `delisted_tickers`, `paper_trade_performance`, `validation_reports`, `journal_entries`, `llm_cache`, `hmm_model_registry`, `yfinance_fetch_audit`, `cboe_pc_ratio`, + enhancement tables `system_predictions`, `recommendation_changes`, `notes`, `research_cache`, `kronos_forecast_cache` | feature store + model registry + trader journal + the Tier 1–3 section stores |
 | `data/db/audit.duckdb` | `backtest_executions` | monotonic trial counter for DSR |
 
 The trial count is the **row count** of `backtest_executions`, not a separate counter column. A half-written insert cannot drift it.
+
+The enhancement tables back the dashboard's self-knowledge / governance sections
+(track record, decision change-log, notes inbox, research radar) and the Kronos
+forecast cache — see [11_dashboard_sections.md](11_dashboard_sections.md). All DDL
+lives in `schema.py`; `bootstrap_schema` is idempotent.
 
 Parquet snapshots at `data/cache/features/` are Snappy-compressed and are write-anywhere read-anywhere (no schema migration concerns).
 

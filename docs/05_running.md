@@ -33,7 +33,7 @@ Output:
 ```
 
 The script is idempotent — running it again is a no-op. It creates:
-- `data/db/main.duckdb` with `features_pit`, `delisted_tickers`, `paper_trade_performance`, `validation_reports`, `journal_entries`
+- `data/db/main.duckdb` with the full schema: `features_pit`, `delisted_tickers`, `paper_trade_performance`, `validation_reports`, `journal_entries`, `llm_cache`, `hmm_model_registry`, `yfinance_fetch_audit`, `cboe_pc_ratio`, and the enhancement tables `system_predictions`, `recommendation_changes`, `notes`, `research_cache`, `kronos_forecast_cache` (DDL in `data_infra/schema.py`)
 - `data/db/audit.duckdb` with `backtest_executions`
 - `data/cache/features/` (empty Parquet snapshot dir)
 
@@ -64,7 +64,7 @@ Free sources, no API keys:
 python scripts/ingest_real_data.py
 ```
 
-Pulls daily OHLCV from Yahoo Finance for the architecture's macro factor proxies (SPY, TLT, HYG, QQQ, IWD, IWM, UUP, DBC, SVXY, SMH) plus five mega-caps (AAPL, MSFT, NVDA, GOOGL, AMZN), the VIX index, and three FRED macro series (DGS10, DGS2, BAMLH0A0HYM2).  Default window is 10 years.
+Pulls daily OHLCV from Yahoo Finance for the architecture's macro factor proxies (SPY, TLT, HYG, QQQ, IWD, IWM, UUP, DBC, SVXY, SMH) plus five mega-caps (AAPL, MSFT, NVDA, GOOGL, AMZN), the VIX index, and three FRED macro series (DGS10, DGS2, BAMLH0A0HYM2).  Default window is 10 years.  It also persists the raw-candlestick `px_*` archive (`px_open`/`high`/`low`/`close`/`volume`) that the Kronos transformer reconstructs from.
 
 ```powershell
 python scripts/ingest_real_data.py --tickers SPY AAPL MSFT --start 2020-01-01 --end 2024-12-31
@@ -115,13 +115,42 @@ Persisted 11 ValidationReport(s) to data\db\main.duckdb
 
 (Sharpes are inflated because the synthetic data has positive drift; a real-data run would produce more realistic numbers.)  Re-running the script is idempotent — `persist_report` uses `INSERT OR REPLACE`.
 
+## Refresh the enhancement sections (optional, out-of-band)
+
+The Tier 1–3 sections that need heavy compute or the network are refreshed by
+their own scripts — never on the GET path (see
+[11_dashboard_sections.md](11_dashboard_sections.md)):
+
+```powershell
+python scripts/track_record.py             # resolve past calls → trackRecord
+python scripts/snapshot_recommendations.py # record material changes → change-log
+python scripts/research_radar.py           # fetch arXiv → research_cache
+```
+
+## Kronos forecaster (validated-only, optional)
+
+The Kronos forecaster stays hidden until it passes the Layer 0 gate. It needs the
+`[kronos]` extra (`pip install -e ".[kronos]"`) and the `px_*` archive from the
+real-data ingest. Full recipe (incl. the GPU fine-tune) in
+[kronos_finetune.md](kronos_finetune.md):
+
+```powershell
+python scripts/train_kronos.py --backend transformer --hf-model <checkpoint> --device cuda
+python scripts/validate_kronos_candidate.py --candidate <artifact> --promote-on-pass
+python scripts/kronos_forecast.py          # refresh kronos_forecast_cache (only if promoted)
+```
+
+Kronos-base does **not** currently clear the gate (poor US transfer; fine-tuning
+re-centres the forecasts without adding tradable skill), so it stays hidden — the
+gate working as designed.
+
 ## Run the tests
 
 ```powershell
 pytest tests/ -v
 ```
 
-Expected result: **188 passed** in ~30s.
+Expected result: **280 passed** in ~30s.
 
 For coverage:
 ```powershell

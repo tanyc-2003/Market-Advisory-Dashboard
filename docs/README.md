@@ -16,5 +16,7 @@ The architecture source-of-truth is `../Claude code building guide/Advisory_Dash
 | [08_llm.md](08_llm.md) | operator | optional LLM layer — what it can/cannot do, enabling it, cache + TTL |
 | [09_v7_lite.md](09_v7_lite.md) | operator / reviewer | V7_lite (Scanner+) extension — the three modes, eight new invariants, locked layers |
 | [10_web_stack.md](10_web_stack.md) | operator / implementer | React + Vite frontend + FastAPI API — payload contract, live-vs-representative wiring, the data pipeline |
+| [11_dashboard_sections.md](11_dashboard_sections.md) | implementer / reviewer | the nine Tier 1–3 enhancement sections (track record, data health, forecast fan, synthesis, change-log, notes, stress gauge, arXiv radar, Kronos) — module, payload key, and gate for each |
+| [kronos_finetune.md](kronos_finetune.md) | implementer | Kronos forecaster — fine-tune pipeline, GPU recipe, and the empirical gate result |
 
-A reader who wants the shortest path to understanding should read 01 → 03 → 05 → 10. A reader who is reviewing a PR should read 03 + 09 first. An operator picking the free vs paid data tier should jump straight to 09. Anyone running or extending the **current** UI (React web app + HTTP API) should read 10; 07 documents the legacy Streamlit UI it supersedes.
+A reader who wants the shortest path to understanding should read 01 → 03 → 05 → 10. A reader who is reviewing a PR should read 03 + 09 first. An operator picking the free vs paid data tier should jump straight to 09. Anyone running or extending the **current** UI (React web app + HTTP API) should read 10, then 11 for the enhancement sections; 07 documents the legacy Streamlit UI it supersedes.
