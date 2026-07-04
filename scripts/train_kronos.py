@@ -35,6 +35,12 @@ def main() -> None:
     ap.add_argument("--samples", type=int, default=16, help="transformer: stochastic samples per forecast")
     ap.add_argument("--hf-model", default="NeoQuasar/Kronos-base")
     ap.add_argument("--hf-tokenizer", default="NeoQuasar/Kronos-Tokenizer-base")
+    ap.add_argument("--no-calibrate", action="store_true",
+                    help="transformer: skip PIT calibration of bias / band width")
+    ap.add_argument("--calib-dates", type=int, default=6,
+                    help="transformer: backtest dates per ticker for the bias fit")
+    ap.add_argument("--calib-samples", type=int, default=10,
+                    help="transformer: samples for band-width calibration")
     ap.add_argument("--output", type=Path, default=None)
     args = ap.parse_args()
 
@@ -50,6 +56,13 @@ def main() -> None:
             hf_model=args.hf_model, hf_tokenizer=args.hf_tokenizer,
             samples=args.samples, training_end=args.training_end, app_mode=args.mode,
         )
+        if not args.no_calibrate:
+            from src.advisory.api.kronos_forecast_live import calibrate_transformer
+
+            print("Calibrating bias / band width on the PIT archive (backtesting — slow) ...")
+            calibrate_transformer(conn, forecaster, n_dates=args.calib_dates, samples=args.calib_samples)
+            tb = {k: round(v, 3) for k, v in forecaster.ticker_bias.items()}
+            print(f"     global bias={forecaster.bias:+.4f}  calib={forecaster.calib:.2f}  per-ticker bias={tb}")
         forecaster.save(output)
         model_id = output.stem
         conn.execute(

@@ -21,6 +21,7 @@ import numpy as np
 import pandas as pd
 
 DEFAULT_HORIZONS: tuple[int, ...] = (1, 3, 5, 10)
+_CLAMP = 0.35  # sanity bound on displayed cumulative-return bands
 
 
 @dataclass
@@ -33,7 +34,9 @@ class KronosTransformerForecaster:
     horizons: tuple[int, ...] = DEFAULT_HORIZONS
     top_p: float = 0.9
     temperature: float = 1.0
-    calib: float = 1.0
+    calib: float = 1.0                 # band-width scale (coverage calibration)
+    bias: float = 0.0                  # global additive drift correction (10d)
+    ticker_bias: dict[str, float] = field(default_factory=dict)  # per-ticker override
     training_end: date | None = None
     app_mode: str = "v7_lite"
     extras: dict[str, Any] = field(default_factory=dict)
@@ -70,6 +73,7 @@ class KronosTransformerForecaster:
         x_timestamp: pd.Series,
         y_timestamp: pd.Series,
         current_vol_annual: float | None = None,
+        ticker: str | None = None,
     ) -> dict[str, Any] | None:
         if ohlcv_df is None or len(ohlcv_df) < 60:
             return None
@@ -79,15 +83,26 @@ class KronosTransformerForecaster:
         closes = self._sample_closes(ohlcv_df, x_timestamp, y_timestamp)
         rets = closes / last_close - 1.0  # cumulative simple return per step, per sample
 
+        # Calibration: additive bias (per-ticker override, else global), scaled by
+        # horizon fraction, plus band-width scaling for coverage.
+        h_max = max(self.horizons)
+        bias = self.ticker_bias.get(ticker, self.bias) if ticker else self.bias
+
         bands: list[dict[str, float]] = []
         for h in self.horizons:
             col = rets[:, h - 1]
-            med = float(np.median(col))
-            p5 = med + (float(np.percentile(col, 5)) - med) * self.calib
-            p95 = med + (float(np.percentile(col, 95)) - med) * self.calib
+            raw_med = float(np.median(col))
+            med = raw_med + bias * (h / h_max)
+            p5 = med + (float(np.percentile(col, 5)) - raw_med) * self.calib
+            p95 = med + (float(np.percentile(col, 95)) - raw_med) * self.calib
+            # Sanity-clamp each to a plausible 10-day bound, then sort so ordering
+            # holds even when a mis-transferred base model pushes the whole band out.
+            p5, med, p95 = sorted(
+                max(-_CLAMP, min(v, _CLAMP)) for v in (p5, med, p95)
+            )
             bands.append({"h": int(h), "p5": p5, "p50": med, "p95": p95})
 
-        terminal = rets[:, -1]
+        terminal = rets[:, -1] + bias
         p_up = float((terminal > 0).mean())
 
         p_vol_shift: float | None = None
@@ -116,6 +131,7 @@ class KronosTransformerForecaster:
             "device": self.device, "max_context": self.max_context,
             "samples": self.samples, "horizons": list(self.horizons),
             "top_p": self.top_p, "temperature": self.temperature, "calib": self.calib,
+            "bias": self.bias, "ticker_bias": self.ticker_bias,
             "training_end": self.training_end, "app_mode": self.app_mode, "extras": self.extras,
         }
 
@@ -132,6 +148,8 @@ class KronosTransformerForecaster:
             device=art.get("device", "cpu"), max_context=int(art.get("max_context", 512)),
             samples=int(art.get("samples", 16)), horizons=tuple(art.get("horizons", DEFAULT_HORIZONS)),
             top_p=float(art.get("top_p", 0.9)), temperature=float(art.get("temperature", 1.0)),
-            calib=float(art.get("calib", 1.0)), training_end=art.get("training_end"),
+            calib=float(art.get("calib", 1.0)), bias=float(art.get("bias", 0.0)),
+            ticker_bias=dict(art.get("ticker_bias", {})),
+            training_end=art.get("training_end"),
             app_mode=art.get("app_mode", "v7_lite"), extras=art.get("extras", {}),
         )

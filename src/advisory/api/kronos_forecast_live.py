@@ -30,6 +30,7 @@ _cache: dict[str, Any] = {"path": None, "mtime": None, "forecaster": None}
 
 _PX = ["px_open", "px_high", "px_low", "px_close", "px_volume"]
 _HORIZON = 10
+_BIAS_CAP = 0.10  # max 10-day drift correction per ticker
 
 
 # ---------------------------------------------------------------- model loading
@@ -195,6 +196,88 @@ def attach_to_assets(conn: duckdb.DuckDBPyConnection, assets: list[dict[str, Any
             a["kronos"] = k[a["ticker"]]
 
 
+# ---------------------------------------------------------------- calibration
+
+def calibrate_transformer(conn, forecaster, n_dates: int = 6, samples: int = 10) -> Any:
+    """Fit per-ticker bias + band-width `calib` by backtesting the transformer
+    against realised forward returns in the PIT archive. Mutates + returns it."""
+    import pandas as pd
+
+    tickers = [t for t, _ in analogs_live._WATCHLIST]
+    predictor = forecaster._ensure_predictor()
+    ctx_len = forecaster.max_context
+
+    all_pred: list[float] = []
+    ticker_bias: dict[str, float] = {}
+    for tk in tickers:
+        res = _ohlcv_from_pit(conn, tk, 10 ** 9)  # full history
+        if res is None:
+            continue
+        full_df, full_x = res
+        n = len(full_df)
+        if n < 140:
+            continue
+        idxs = np.unique(np.linspace(120, n - (_HORIZON + 6), n_dates).astype(int))
+        preds: list[float] = []
+        for i in idxs:
+            start = max(0, i + 1 - ctx_len)
+            ctx = full_df.iloc[start:i + 1].reset_index(drop=True)
+            xts = full_x.iloc[start:i + 1].reset_index(drop=True)
+            yts = pd.Series(pd.bdate_range(xts.iloc[-1] + pd.Timedelta(days=1), periods=_HORIZON))
+            lc = float(ctx["close"].iloc[-1])
+            try:
+                out = predictor.predict(df=ctx, x_timestamp=xts, y_timestamp=yts, pred_len=_HORIZON,
+                                        T=forecaster.temperature, top_p=forecaster.top_p,
+                                        sample_count=6, verbose=False)
+            except Exception:
+                continue
+            pred = float(out["close"].iloc[-1] / lc - 1.0)
+            if np.isfinite(pred):
+                preds.append(pred)
+        # Neutralise the model's *own* systematic drift (it has no validated
+        # directional edge here) rather than chasing realised returns, and cap it
+        # so no single ticker gets an extreme shift.
+        if preds:
+            ticker_bias[tk] = float(np.clip(-np.median(preds), -_BIAS_CAP, _BIAS_CAP))
+            all_pred.extend(preds)
+
+    forecaster.bias = float(np.clip(-np.median(all_pred), -_BIAS_CAP, _BIAS_CAP)) if all_pred else 0.0
+    forecaster.ticker_bias = ticker_bias
+
+    calibs: list[float] = []
+    for tk in tickers:
+        res = _ohlcv_from_pit(conn, tk, ctx_len)
+        if res is None:
+            continue
+        df, xts = res
+        yts = pd.Series(pd.bdate_range(xts.iloc[-1] + pd.Timedelta(days=1), periods=_HORIZON))
+        lc = float(df["close"].iloc[-1])
+        rets: list[float] = []
+        for _ in range(samples):
+            try:
+                o = predictor.predict(df=df, x_timestamp=xts, y_timestamp=yts, pred_len=_HORIZON,
+                                      T=forecaster.temperature, top_p=forecaster.top_p,
+                                      sample_count=1, verbose=False)
+                rets.append(float(o["close"].iloc[-1] / lc - 1.0))
+            except Exception:
+                pass
+        if len(rets) < 5:
+            continue
+        arr = np.array(rets)
+        model_w = float(np.percentile(arr, 95) - np.percentile(arr, 5))
+        emp = np.array([float(r[0]) for r in conn.execute(
+            "SELECT feature_value FROM features_pit WHERE ticker = ? AND feature_name = 'ret_fwd_10d'", [tk]
+        ).fetchall() if r[0] is not None])
+        if model_w > 1e-6 and emp.size > 30:
+            emp_w = float(np.percentile(emp, 95) - np.percentile(emp, 5))
+            calibs.append(emp_w / model_w)
+
+    forecaster.calib = float(np.clip(np.median(calibs), 0.5, 2.0)) if calibs else 1.0
+    forecaster.extras["calibrated"] = True
+    forecaster.extras["calib_n_pred"] = len(all_pred)
+    return forecaster
+
+
 # ---------------------------------------------------------------- refresh (out-of-band)
 
 def refresh_cache(conn: duckdb.DuckDBPyConnection, use_live_edge: bool = True) -> int:
@@ -208,7 +291,7 @@ def refresh_cache(conn: duckdb.DuckDBPyConnection, use_live_edge: bool = True) -
         if asm is None:
             continue
         df, x_ts, y_ts, live_edge = asm
-        fc = forecaster.forecast(df, x_ts, y_ts, current_vol_annual=_current_vol(conn, ticker))
+        fc = forecaster.forecast(df, x_ts, y_ts, current_vol_annual=_current_vol(conn, ticker), ticker=ticker)
         if fc is None:
             continue
         conn.execute(
