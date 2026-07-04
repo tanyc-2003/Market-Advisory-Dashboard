@@ -29,7 +29,7 @@ Module: [src/advisory/data_infra/](../src/advisory/data_infra/)
 
 | Symbol | Contract |
 |---|---|
-| `bootstrap_schema(conn)` | Creates `features_pit`, `delisted_tickers`, `paper_trade_performance`, `backtest_executions`, `validation_reports`, `journal_entries`. Idempotent. |
+| `bootstrap_schema(conn)` | Idempotent DDL for all tables: `features_pit`, `delisted_tickers`, `paper_trade_performance`, `backtest_executions`, `validation_reports`, `journal_entries`, `llm_cache`, `hmm_model_registry`, `yfinance_fetch_audit`, `cboe_pc_ratio`, plus the enhancement tables `system_predictions`, `recommendation_changes`, `notes`, `research_cache`, `kronos_forecast_cache`. The **single** source of `CREATE TABLE` in the codebase. |
 | `PIT_QUERY` | The point-in-time SQL constant; uses `knowledge_date < ?` (strict less-than). |
 | `FUNDAMENTAL_LAGS` + `get_lag(name)` | Knowledge-date lag in trading days per feature. Unknown features default to 1 (conservative). |
 | `FeatureStore(db_path, cache_dir)` | The only read path for features. `get_feature_pit`, `get_feature_history` (lag-aware), `write_features`, `cache_snapshot`, `load_snapshot`. |
@@ -38,6 +38,7 @@ Module: [src/advisory/data_infra/](../src/advisory/data_infra/)
 | `YFinanceConnector` | Real daily OHLCV via Yahoo Finance — free, no API key.  `fetch_daily_ohlcv(tickers, start, end)`. |
 | `FREDConnector` | Real macro series via FRED's public CSV endpoint — free, no API key.  `fetch_series(series_id, start, end)`. |
 | `compute_ohlcv_features(ohlcv)` | OHLCV → long-format feature rows (`ret_1d`/`5d`/`21d`/`63d`, `realized_vol_21d`, `rsi_14`, `pct_above_ma50`, `ret_fwd_10d`).  Schema matches `FeatureStore.write_features`. |
+| `ohlcv_pit_rows(ohlcv)` | OHLCV → `px_open`/`px_high`/`px_low`/`px_close`/`px_volume` PIT rows — the raw-candlestick archive the Kronos transformer reconstructs from (persisted by `ingest_real_data.py`). |
 | `vix_percentile_from_close`, `yield_curve_slope`, `hy_spread_roc` | Macro feature builders consuming FRED / VIX outputs. |
 
 ---
@@ -185,6 +186,43 @@ Module: [src/advisory/layer10_sizing/](../src/advisory/layer10_sizing/)
 | `KELLY_LOW_SAMPLE_THRESHOLD = 100` | Triggers a fragility warning. |
 | `ES_QUANTILE = 0.05` | 5th-percentile expected-shortfall as the Kelly loss term. |
 | `SIZING_NOTE` | Exact architecture string surfaced on the dashboard. |
+
+---
+
+## Layer Kronos — Probabilistic Forecaster
+
+Module: [src/advisory/layer_kronos/](../src/advisory/layer_kronos/)
+
+An **additional, validated-only** forward-return forecaster feeding the watchlist
+fan (Tier 3 #9 — see [11_dashboard_sections.md](11_dashboard_sections.md)). Two
+backends share one `forecast(...) -> dict` contract with p5/p50/p95 bands per
+horizon, `pUp`, and `pVolShift`. It is **hidden until it passes Layer 0** on our
+data — the same gate as every other layer.
+
+| Symbol | Contract |
+|---|---|
+| `KronosForecaster` | Block-bootstrap Monte-Carlo backend (fast, GET-path). Dataclass: `block_size=5`, `n_sims=500`, `horizons=(1,3,5,10)`, `calib` (band-width multiplier fit in `train_kronos`), `lookback=504`, `seed=42`. `forecast(returns) -> {forecast:[bands], pUp, …}`; `point_forecast(returns)` is the directional signal for the gate. |
+| `KronosTransformerForecaster` | Pretrained-transformer backend (heavy, precomputed out-of-band). Wraps the vendored Kronos model + tokenizer; draws `samples` stochastic paths → percentile fan. Carries `calib` (band scale), `bias`/`ticker_bias` (drift correction), `device` (`cpu`/`cuda`). `_CLAMP=0.35` sanity-bounds the displayed bands. `to_artifact`/`from_artifact` persist a **config marker** (weights live in the HF cache / a local checkpoint dir). |
+| `load_forecaster(path)` | Loads whichever backend the artifact declares (`kind=="kronos_transformer"` vs block-bootstrap). |
+| `train_kronos(returns, realized_fwd_10d, training_end)` | Fits the block-bootstrap forecaster and calibrates `calib` so the 10-day p5–p95 range matches the empirical spread of realised forward returns. Registered as a `candidate`; promotion is the separate Layer 0 step. |
+| `finetune.build_windows(conn, tickers, …)` / `finetune(windows, …)` | US-equities fine-tune of the transformer predictor from the PIT `px_*` archive (frozen tokenizer + next-token loss). Produces a HF-style checkpoint loadable as a drop-in `hf_model`. Runs on CPU; `--device cuda` for GPU. See [kronos_finetune.md](kronos_finetune.md). |
+| `kronos_vendor/` | Vendored Kronos model code (shiyu-coder/Kronos, Apache-2.0) — excluded from ruff; one import made relative. |
+
+**Backends & the GET path.** The block-bootstrap backend is cheap enough to
+compute on request; the transformer is not, so `scripts/kronos_forecast.py`
+precomputes it into `kronos_forecast_cache` and the API only reads the cache.
+Candlesticks are reconstructed from `features_pit` `px_*`; an optional yfinance
+live-edge bar may be appended for inference only (tagged `liveEdge`, never
+persisted).
+
+**Gate status (empirical).** Kronos-base transfers poorly to US mega-caps and a
+straight fine-tune re-centres the forecasts without adding tradable skill, so it
+does **not** clear Layer 0 and stays hidden — the gate working as designed. Full
+finding in [kronos_finetune.md](kronos_finetune.md).
+
+Pipeline scripts: `train_kronos.py` (register candidate + calibrate),
+`validate_kronos_candidate.py` (Layer 0 gate + promote-on-pass),
+`kronos_forecast.py` (refresh cache), `finetune_kronos.py` (fine-tune).
 
 ---
 

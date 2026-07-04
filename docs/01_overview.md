@@ -10,7 +10,7 @@ The system targets the failure mode where a trader builds a sophisticated dashbo
 
 > No layer output is treated as evidence until its `ValidationReport.production_ready == True`.
 
-Every other layer — historical analogs, regime detection, attribution, factor risk, portfolio diagnostics, position sizing — is wrapped in this gate. `ValidationReport.status` returns one of three strings, and the dashboard renders accordingly:
+Every other layer — historical analogs, regime detection, attribution, factor risk, portfolio diagnostics, position sizing, and the additive Kronos forecaster — is wrapped in this gate. `ValidationReport.status` returns one of three strings, and the dashboard renders accordingly:
 
 | Status | What it means | UI behaviour |
 |---|---|---|

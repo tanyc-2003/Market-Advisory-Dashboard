@@ -59,6 +59,24 @@ cd frontend && npm install && npm run dev      # Vite on :5173
 # API code: src/advisory/api/ (presentation.py = representative source of truth;
 # *_live.py = live wiring with research-preview disclosures).
 
+## Enhancement sections (Tier 1-3) — docs/11_dashboard_sections.md
+The /api/dashboard payload also carries nine enhancement sections composed in
+live.build_dashboard(): trackRecord, dataHealth, forecast fan, bull/bear case,
+recommendationChanges (change-log), notes inbox, stress gauge, researchRadar,
+and per-asset Kronos forecast. Each follows compute_<section>(conn) -> payload |
+None with a source flag; heavy/networked producers refresh OUT-OF-BAND
+(scripts/track_record.py, snapshot_recommendations.py, research_radar.py,
+kronos_forecast.py) — never on the GET path. Roadmap: brainstorm/feature-roadmap.md.
+
+## Kronos forecaster (validated-only) — docs/kronos_finetune.md
+pip install -e ".[kronos]"                       # torch + einops + huggingface_hub
+python scripts/train_kronos.py --backend transformer --hf-model <checkpoint> --device cuda
+python scripts/validate_kronos_candidate.py --candidate <artifact> --promote-on-pass
+python scripts/kronos_forecast.py                # refresh kronos_forecast_cache
+# GATED: hidden until it passes Layer 0. Kronos-base does NOT clear the gate
+# (poor US transfer; fine-tune re-centres without adding skill) — stays hidden.
+# Never promote a Kronos model that fails validate_kronos_candidate.
+
 ## Running tests
 pytest tests/ -v --cov=src/advisory
 

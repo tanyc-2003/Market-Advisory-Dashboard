@@ -13,6 +13,15 @@ A local-first dashboard that turns market data into *honest evidence about evide
 - **What you're calibrated for** — a journal-fed reliability diagram with Brier score, ECE, and a thesis-drift detector.
 - **What you'd size into** — tail-aware Kelly diagnostics with a 20% absolute cap, regime-uncertainty haircut, and explicit fragility warnings.
 
+It also **grades itself and its inputs**, and keeps an auditable memory (Tier 1–3 enhancement sections — see [docs/11_dashboard_sections.md](docs/11_dashboard_sections.md)):
+
+- **How its own calls have done** — a self-grading track record that logs each watchlist call *as stated* and resolves it against the realised forward return (rolling hit rate, alpha vs SPY, reliability curve).
+- **Whether the inputs are fresh** — a per-feed data-health / PIT-staleness monitor that grades the *inputs* the way Layer 0 grades outputs.
+- **The case for and against** — a bull/bear synthesis composed from signals already computed, plus a 0–100 heuristic market-stress gauge (weights shown, never dressed as a model).
+- **What changed and why** — a "trading-as-git" decision change-log with rationale, and a persistent per-ticker notes inbox.
+- **A second, gated forecast** — the Kronos probabilistic forecaster feeding the watchlist fan, **hidden until it passes Layer 0** (it currently does not — see [docs/kronos_finetune.md](docs/kronos_finetune.md)).
+- **What the field is publishing** — an arXiv research radar tracking the methods this system uses.
+
 Every output is wrapped in one rule: **no layer's result is treated as evidence until Layer 0 has signed it off.**  The dashboard refuses to render layer outputs without a passing `ValidationReport` — a positive walk-forward Sharpe alone isn't enough; the Deflated Sharpe Ratio applies a trial-count penalty drawn from a monotonic DuckDB audit log so nobody can pretend they ran fewer experiments than they did.
 
 > **What this system does NOT do.** Execute trades. Recommend specific position sizes. Generate deterministic buy/sell signals. Claim predictive certainty. Treat unvalidated outputs as evidence. These restrictions are architectural, not cultural.
@@ -210,10 +219,16 @@ src/advisory/
   layer9_calibration/   # TraderCalibrationSystem (reliability, Brier, ECE, Wilson)
   layer10_sizing/       # tail-aware Kelly - regime haircut - 20% absolute cap
                         # V7_lite: lite_diagnostics.py adds binomial wipeout injection
+  layer_kronos/         # probabilistic forecaster (validated-only, Tier 3 #9)
+                        # forecaster.py (block-bootstrap) + transformer.py (pretrained
+                        # Kronos) + finetune.py + vendored kronos_vendor/
   layer_llm/            # optional, off-path: LLMContextPacket + CachedLLMInterface
   api/                  # FastAPI service for the React UI (current)
                         # app, live (payload assembly), presentation (representative
-                        # data), db, market_state_live, analogs_live, calibration_live
+                        # data), db; live wiring: market_state_live, analogs_live,
+                        # calibration_live, kronos_forecast_live, stress_live,
+                        # track_record_live, data_health_live, recommendation_log,
+                        # notes_live, synthesis_live, research_radar_live
   dashboard/            # Streamlit entry, state helpers, components, 8 pages (legacy UI)
                         # V7_lite: mode indicator, survivorship panel, locked tiles
   paper_trading/        # RealisticExecutionHarness
@@ -223,8 +238,13 @@ frontend/               # React + Vite + TypeScript SPA (current UI)
                         # src/api.ts (typed client), App.tsx, views/, components/
 config/                 # settings.py + sector_map.yaml + lite_feature_set_9dim.yaml
 scripts/                # bootstrap_db, seed_synthetic_data, ingest_real_data,
-                        # run_validation, train_hmm, validate_hmm_candidate, run_api
-tests/                  # 280 passing tests (205 V7 + 75 V7_lite)
+                        # run_validation, train_hmm, validate_hmm_candidate, run_api;
+                        # Kronos: train_kronos, validate_kronos_candidate,
+                        # kronos_forecast, finetune_kronos;
+                        # enhancement refresh: track_record, snapshot_recommendations,
+                        # research_radar
+brainstorm/             # feature roadmap + Tier 1-3 specs + frontend display spec
+tests/                  # 280 passing tests (V7 + V7_lite + enhancement sections)
 docs/                   # full architecture & usage docs
 ```
 
@@ -246,6 +266,10 @@ The full per-layer documentation lives in [`docs/`](docs/):
 - [docs/08_llm.md](docs/08_llm.md) — optional LLM interpretation layer
 - [docs/09_v7_lite.md](docs/09_v7_lite.md) — V7_lite (Scanner+) extension and operating modes
 - [docs/10_web_stack.md](docs/10_web_stack.md) — **React frontend + FastAPI API** (current UI): payload contract, live-vs-representative wiring, the data pipeline
+- [docs/11_dashboard_sections.md](docs/11_dashboard_sections.md) — the nine Tier 1–3 enhancement sections (track record, data health, forecast, synthesis, change-log, notes, stress, radar, Kronos): module, payload key, and gate for each
+- [docs/kronos_finetune.md](docs/kronos_finetune.md) — Kronos forecaster: fine-tune pipeline, GPU recipe, and the empirical gate result
+
+The enhancement-section roadmap (selection criteria, source repos, licensing) lives in [brainstorm/feature-roadmap.md](brainstorm/feature-roadmap.md) with per-tier specs alongside it.
 
 For background reading, the architecture source-of-truth is `Claude code building guide/Advisory_Dashboard_Architecture_v7.md` (and `_v7_lite.md` for the extension).  The phase-by-phase build guides are in the same folder.
 
