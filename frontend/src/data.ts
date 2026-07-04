@@ -7,7 +7,7 @@
  * module now holds only the TypeScript shapes those payloads conform to, plus
  * client-side UI concerns (navigation, per-view header copy).
  */
-import type { LayerStatus } from './theme'
+import type { LayerStatus, ForecastBand } from './theme'
 
 // ---------- domain types (mirror the API payload) ----------
 
@@ -34,6 +34,13 @@ export interface Sizing {
   displayed: number
 }
 
+export interface CaseData {
+  bull: string[]
+  bear: string[]
+  verdict: string
+  confidence: string
+}
+
 export interface Asset {
   ticker: string
   sector: string
@@ -49,6 +56,16 @@ export interface Asset {
   disagreementNote?: string
   drivers: string[]
   sizing: Sizing
+  /** P(up in 10d) from the analog engine; may be absent for representative rows. */
+  pUp?: number | null
+  /** P(vol-regime shift). */
+  pVolShift?: number | null
+  /** Per-horizon forecast fan; when absent the Overview interpolates a √t approx. */
+  forecast?: ForecastBand[]
+  /** true when the fan is a √t approximation rather than per-horizon analogs. */
+  forecastApprox?: boolean
+  /** Bull/bear synthesis (Tier 2 #4); attached by synthesis_live. */
+  case?: CaseData
 }
 
 export interface Alert {
@@ -94,13 +111,122 @@ export interface CalRow {
   n: number
 }
 
+// ---------- enhancement-section types (Tiers 1–3) ----------
+
+export interface Feed {
+  name: string
+  source?: string
+  lastDate?: string
+  staleDays: number
+  status: string
+}
+
+export interface DataHealth {
+  asOf: string | null
+  overall: string
+  feeds: Feed[]
+  source?: string
+}
+
+export interface ResearchItem {
+  topic: string
+  title: string
+  authors: string
+  published?: string
+  url: string
+  summary?: string
+}
+
+export interface ResearchRadar {
+  fetchedAt: string | null
+  items: ResearchItem[]
+  source?: string
+}
+
+export interface StressComponent {
+  name: string
+  value: number
+  weight: number
+}
+
+export interface Stress {
+  composite: number | null
+  level: string
+  components: StressComponent[]
+  weighting: string | null
+  validated?: boolean | null
+  source?: string
+}
+
+export interface NoteItem {
+  id: string
+  ticker: string | null
+  kind: string
+  body: string
+  source: string
+  read: boolean
+  createdAt: string
+}
+
+export interface NotesData {
+  unread: number
+  items: NoteItem[]
+  source?: string
+}
+
+export interface RecChange {
+  id?: string
+  ticker: string
+  field: string
+  prev: string
+  /** API sends `new`; the design calls it `next`. Either may be present. */
+  next?: string
+  new?: string
+  verdict?: string
+  changedAt: string
+  guardPassed: boolean
+}
+
+export interface RecommendationChanges {
+  items: RecChange[]
+  source?: string
+}
+
+export interface TrackRecordTicker {
+  ticker: string
+  n: number
+  hitRate: number
+  alpha: number
+}
+
+export interface ReliabilityPoint {
+  bucket: number
+  predicted: number
+  observed: number
+  n?: number
+}
+
+export interface TrackRecordData {
+  resolved: number
+  pending: number
+  hitRate: number | null
+  directionalAccuracy: number | null
+  meanPredP50: number | null
+  meanRealized: number | null
+  alphaMean: number | null
+  alphaHitRate: number | null
+  byTicker: TrackRecordTicker[]
+  reliability: ReliabilityPoint[]
+  source?: string
+}
+
 export interface HeaderInfo {
   kicker: string
   title: string
   subtitle: string
 }
 
-export type ViewId = 'overview' | 'portfolio' | 'journal' | 'calibration' | 'validation'
+export type ViewId = 'overview' | 'trackrecord' | 'portfolio' | 'journal' | 'calibration' | 'validation'
 
 // ---------- header copy per view ----------
 
@@ -110,6 +236,12 @@ export const headers: Record<ViewId, HeaderInfo> = {
     title: 'Overview',
     subtitle:
       'What is, and is not, statistically supported right now — every claim carries its error bars and its validation status.',
+  },
+  trackrecord: {
+    kicker: 'Self-grading',
+    title: 'Track record',
+    subtitle:
+      "The system grading its own past calls, resolved against realised forward returns — distinct from Calibration, which grades the trader.",
   },
   portfolio: { kicker: 'Layer 6', title: 'Portfolio diagnostics', subtitle: 'Current weights, factor stress scenarios and correlation clusters.' },
   journal: { kicker: 'Layer 8', title: 'Trader journal', subtitle: 'Log theses with what would invalidate them; review open and completed trades.' },
@@ -133,6 +265,7 @@ export interface NavItem {
 
 export const navItems: NavItem[] = [
   { id: 'overview', label: 'Overview' },
+  { id: 'trackrecord', label: 'Track record' },
   { id: 'portfolio', label: 'Portfolio' },
   { id: 'journal', label: 'Journal' },
   { id: 'calibration', label: 'Calibration' },
