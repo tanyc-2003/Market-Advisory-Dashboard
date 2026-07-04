@@ -61,6 +61,10 @@ class Settings(BaseSettings):
     hmm_model_path_institutional: Path = Path("models/hmm_v7_institutional.pkl")
     hmm_model_path_lite: Path = Path("models/hmm_v7_lite.pkl")
 
+    # Kronos probabilistic forecaster — canonical (promoted) artifact path.
+    # Validated-only: the dashboard shows Kronos forecasts only when this exists.
+    kronos_model_path_lite: Path = Path("models/kronos_v7_lite.pkl")
+
     # V7_lite validation thresholds.
     divergence_threshold_lite: float = 0.40
     max_missing_bar_fraction: float = 0.02
