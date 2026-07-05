@@ -52,12 +52,23 @@ streamlit run src/advisory/dashboard/app.py   # legacy Streamlit UI
 
 ## Web UI (current) — React + Vite frontend + FastAPI API
 # Architecture + live-vs-representative wiring: docs/10_web_stack.md
+# One-click (Windows): run_dashboard.bat  (starts API + frontend; edit CONFIG block at top)
 pip install -e ".[api]"
 python scripts/run_api.py                      # FastAPI on :8000
 cd frontend && npm install && npm run dev      # Vite on :5173
 # Make live panels real: scripts/ingest_real_data.py then scripts/train_hmm.py --mode v7_lite
 # API code: src/advisory/api/ (presentation.py = representative source of truth;
 # *_live.py = live wiring with research-preview disclosures).
+# Frontend: frontend/src/views/ (6 views: Overview, TrackRecord, Portfolio,
+# Journal, Calibration, Validation). App.tsx polls /api/dashboard while a ticker ingests.
+
+## Dynamic watchlist — docs/10_web_stack.md#dynamic-watchlist
+# The watchlist is user-editable (the `watchlist` table; hardcoded _WATCHLIST is now
+# just the lazy-seeded default). POST/DELETE /api/watchlist/{ticker}: add validates ->
+# 400, inserts pending, async-ingests (yfinance fetch OFF db.LOCK, feature+px_* writes
+# UNDER it via data_infra/ingest.py -- the API holds the single RW conn), status
+# pending -> ready/error, then analogs_live.invalidate_cache(). Seed defaults BEFORE
+# the first add (_ensure_seeded) or they vanish.
 
 ## Enhancement sections (Tier 1-3) — docs/11_dashboard_sections.md
 The /api/dashboard payload also carries nine enhancement sections composed in

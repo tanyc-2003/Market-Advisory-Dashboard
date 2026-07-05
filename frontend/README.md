@@ -1,9 +1,9 @@
 # Market Advisory — Frontend (React + Vite)
 
 React + Vite + TypeScript implementation of the **Market Advisory** dashboard,
-recreating the Claude Design mock (`Market Advisory.dc.html`) pixel-for-pixel.
-This is the successor UI to the Streamlit app under
-`src/advisory/dashboard/`; the Python layers remain the computation backend.
+recreating the Claude Design handoff (`Market Advisory.dc.html`) pixel-for-pixel.
+This is the current UI; the Streamlit app under `src/advisory/dashboard/` is the
+legacy UI it supersedes, and the Python layers remain the computation backend.
 
 ## Prerequisites
 
@@ -13,7 +13,9 @@ This is the successor UI to the Streamlit app under
 
 ## Getting started
 
-Run the **backend API** and the **frontend** together (two terminals):
+The easiest path on Windows is the repo-root launcher **`run_dashboard.bat`**
+(double-click) — it starts the API and the frontend, each in its own window. To
+run them by hand (two terminals):
 
 ```bash
 # terminal 1 — API (repo root)
@@ -43,29 +45,50 @@ npm run typecheck  # tsc --noEmit
 ```
 src/
   main.tsx            # React entry
-  App.tsx             # layout shell + view state (which page is active)
-  theme.ts            # design tokens (colours, fonts) + formatting helpers
+  App.tsx             # layout shell + view state; fetches /api/dashboard; polls while a ticker is ingesting
+  theme.ts            # design tokens (colours, fonts) + formatting/SVG helpers (fmtPct, buildFan, status colours)
   styles.ts           # shared, typed CSSProperties fragments
-  api.ts              # typed fetch client + payload types (GET /api/dashboard, POST /api/journal)
-  data.ts             # TypeScript shapes + UI copy (nav, header) — values come from the API
+  api.ts              # typed fetch client + payload types (dashboard, journal, notes, watchlist)
+  data.ts             # TypeScript shapes + UI copy (nav, headers) — values come from the API
   components/
-    Sidebar.tsx       # brand, nav, snapshot panel
+    Sidebar.tsx       # brand, nav, snapshot, collapsible Data health + Research radar, disclosure
     Header.tsx        # per-view header + production/preview gate pills
   views/
-    OverviewView.tsx    # Layer 0 gate strip, Layer 1 market state, Layer 10 sizing,
-                        # Layers 2·3·7 watchlist, Layer 7 alerts, "unknowns"
+    OverviewView.tsx    # stress gauge, Layer 0 gate strip, market state + sizing + bull/bear case,
+                        # forecast fan, watchlist (add ticker, P↑/Δvol tiles, distribution track),
+                        # notes inbox, "what this system does not know", decision change-log
+    TrackRecordView.tsx # self-grading cards + reliability diagram + by-ticker table (Tier 1 #1)
     PortfolioView.tsx   # Layer 6 weights, stress test, correlation cluster
     JournalView.tsx     # open/closed trades + new-entry form
     CalibrationView.tsx # Brier/ECE cards, reliability diagram, calibration table
     ValidationView.tsx  # Layer 0 sign-off table + survivorship / DSR summaries
 ```
 
+## Views
+
+Six views (the Query/LLM item is disabled/`OFF`, matching `LLM_ENABLED`):
+
+- **Overview** — the main screen. Composite market-stress gauge, the Layer 0 gate
+  strip, market state (Layer 1) + Kelly sizing (Layer 10) + bull/bear case, the
+  per-ticker forecast fan, the watchlist (Layers 2·3·7) with add-a-ticker, the
+  Layer 7 notes inbox, the "unknowns" panel, and the decision change-log.
+- **Track record** — the system grading its *own* past calls (distinct from
+  Calibration, which grades the trader).
+- **Portfolio**, **Journal**, **Calibration**, **Validation** — as their names say.
+
 ## Backend wiring
 
-The dashboard is wired to a FastAPI backend (`src/advisory/api/`). On load the
-app fetches `GET /api/dashboard` (one round trip) via the typed client in
-`src/api.ts`; the journal form posts to `POST /api/journal` and `POST
-/api/journal/{id}/close`, which persist to DuckDB and return the refreshed payload.
+On load the app fetches `GET /api/dashboard` (one round trip) via the typed
+client in `src/api.ts`. Mutations return the refreshed payload, which `App` swaps
+into state:
+
+- `POST /api/journal`, `POST /api/journal/{id}/close` — log / close a trade.
+- `POST /api/notes`, `POST /api/notes/{id}/read` — notes inbox.
+- `POST /api/recommendations/{ticker}/rationale` — attach a "commit message".
+- `POST /api/watchlist/{ticker}`, `DELETE /api/watchlist/{ticker}` — **add / remove
+  a watchlist ticker**. An added ticker returns `pending` and is ingested
+  asynchronously; the SPA **polls `/api/dashboard` every 4s** while any ticker is
+  pending, so the row fills in on its own.
 
 What's genuinely live vs. representative (full matrix in
 [../docs/10_web_stack.md](../docs/10_web_stack.md)):
@@ -73,18 +96,21 @@ What's genuinely live vs. representative (full matrix in
 - **Live:** run mode / settings, Kelly cap, survivorship coverage, DSR audit
   count; the **trade journal** incl. trade-close; **market state** from a
   real-data HMM (Layer 1); the **watchlist analogs + sizing** (Layers 2 / 10);
-  and **calibration** graded from closed journal entries (Layer 9). The live
-  models carry a research-preview disclosure — they don't clear Layer 0
-  predictive sign-off.
+  **calibration** graded from closed journal entries (Layer 9); and the Tier 1–3
+  enhancement sections (track record, data health, stress gauge, notes, change-log,
+  research radar) computed by the `*_live.py` modules. The lite models carry a
+  research-preview disclosure — they don't clear Layer 0 predictive sign-off.
 - **Representative (server-side default in `src/advisory/api/presentation.py`):**
-  portfolio / stress (Layer 6), alerts (Layer 7), and the Layer 0 gate metrics
-  (which overlay persisted `ValidationReport`s when present). Each section falls
-  back to representative data when its store/model is absent, so a panel is never
-  empty.
+  portfolio (Layer 6) and any section whose store/model is absent — so a panel is
+  never empty. Each live section carries a `source` flag.
 
-`src/data.ts` now holds only the TypeScript shapes (and UI copy); the values
-come from the API. To point at a non-default API, set `VITE_API_BASE`. To make
-the live panels real, run the data pipeline in
+The Kronos forecast fan attaches only when a **promoted** (Layer-0-passed) Kronos
+model exists; it currently stays hidden by design (see
+[../docs/kronos_finetune.md](../docs/kronos_finetune.md)).
+
+`src/data.ts` holds only the TypeScript shapes (and UI copy); the values come from
+the API. To point at a non-default API, set `VITE_API_BASE`. To make the live
+panels real, run the data pipeline in
 [../docs/10_web_stack.md](../docs/10_web_stack.md#enabling-live-data).
 
 ## Design fidelity notes

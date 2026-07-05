@@ -132,12 +132,19 @@ New tables added for these sections (DDL in
 | `notes` | #6 per-ticker notes inbox |
 | `research_cache` | #8 arXiv radar |
 | `kronos_forecast_cache` | #9 Kronos transformer forecasts (out-of-band) |
+| `watchlist` | the user-editable ticker set the watchlist (#3/#4/#9 live on) — see below |
 
 #2 (data health) and #3/#4 (fan/tiles, synthesis) add **no** tables — they reuse
 `features_pit` / `yfinance_fetch_audit` and compose already-computed sections.
 
+The watchlist those per-ticker sections render on is itself **user-editable**: a
+ticker added in-app is ingested asynchronously (`watchlist` table + the
+`POST`/`DELETE /api/watchlist/{ticker}` routes). Full flow in
+[10_web_stack.md#dynamic-watchlist](10_web_stack.md#dynamic-watchlist).
+
 ## Cross-references
 - Payload contract & the live-vs-representative seam: [10_web_stack.md](10_web_stack.md)
+- The dynamic watchlist (add/remove + async ingest): [10_web_stack.md#dynamic-watchlist](10_web_stack.md#dynamic-watchlist)
 - The Layer 0 invariant every gate serves: [01_overview.md](01_overview.md), [03_invariants.md](03_invariants.md)
 - Kronos model + fine-tune + gate result: [kronos_finetune.md](kronos_finetune.md)
 - Planning rationale and source repos: [brainstorm/feature-roadmap.md](../brainstorm/feature-roadmap.md)

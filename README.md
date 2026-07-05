@@ -53,19 +53,23 @@ python scripts/run_validation.py       # populate validation_reports (required b
 
 # Run the UI — pick one:
 
-# (A) React web app (current UI) — needs Node 18+ and the API extra
+# (A) One-click (Windows): double-click run_dashboard.bat in the repo root.
+#     Starts the API + React frontend in their own windows and opens the browser.
+#     Edit the CONFIG block at the top for mode/ports/data-pipeline options.
+
+# (B) React web app by hand — needs Node 18+ and the API extra
 pip install -e ".[api]"
 python scripts/run_api.py              # FastAPI on http://localhost:8000
 #   ...then in a second terminal:
 cd frontend && npm install && npm run dev   # Vite dev server on http://localhost:5173
 
-# (B) Streamlit (legacy UI)
+# (C) Streamlit (legacy UI)
 streamlit run src/advisory/dashboard/app.py
 ```
 
 There are **two UIs over the same backend** (see [docs/10_web_stack.md](docs/10_web_stack.md)):
 
-- **React web app (current):** open `http://localhost:5173`. It loads the whole dashboard from `GET /api/dashboard` in one round trip. With no data present it renders representative values (the sidebar says so); run the data pipeline below to make the market-state, watchlist, sizing and calibration panels live, each with an honest research-preview disclosure.
+- **React web app (current):** open `http://localhost:5173`. Six views (Overview, Track record, Portfolio, Journal, Calibration, Validation) load from `GET /api/dashboard` in one round trip. With no data present it renders representative values (the sidebar says so); run the data pipeline below to make the market-state, watchlist, sizing and calibration panels live, each with an honest research-preview disclosure. The watchlist is **user-editable** — type a ticker and click *Add*; it's ingested asynchronously and fills in on its own (see [docs/10_web_stack.md#dynamic-watchlist](docs/10_web_stack.md#dynamic-watchlist)).
 - **Streamlit (legacy):** open `http://localhost:8501`. The first page is **Validation** — every other page is gated on the sign-off shown there.
 
 > **Why `run_validation.py` is required.** The dashboard reads pre-computed `ValidationReport`s from the `validation_reports` table and refuses to display layer outputs without one — every layer shows `no_report` until you populate it. This is the architectural default: nothing is treated as evidence until Layer 0 has signed it off.
@@ -106,7 +110,7 @@ All paid keys are optional — leave them blank to stay in lite / developer mode
 
 | Env var | Default | Purpose |
 |---|---|---|
-| `MAIN_DB_PATH` | `data/db/main.duckdb` | Feature store, journal, validation reports, LLM cache. |
+| `MAIN_DB_PATH` | `data/db/main.duckdb` | Feature store, journal, validation reports, LLM cache, the user watchlist, and the Tier 1–3 section stores. |
 | `AUDIT_DB_PATH` | `data/db/audit.duckdb` | Monotonic backtest-execution counter (powers the Deflated Sharpe trial floor). |
 | `CACHE_DIR` | `data/cache/features` | Parquet snapshot cache. |
 
@@ -199,7 +203,7 @@ Default universe is the 10 macro factor proxies from the architecture (SPY, TLT,
 ```
 src/advisory/
   layer0_validation/    # survivorship - audit log - CPCV - WF - DSR - ValidationReport
-  data_infra/           # schema - feature_store - ingestion - lag
+  data_infra/           # schema - feature_store - ingestion - ingest (shared-conn) - lag
                         # + yfinance, FRED PIT-safe, CBOE adapters
                         # + 9-dim feature pipeline (feature_pipeline_lite.py)
   layer1_market_state/  # Winsorised HMM - K-selector - dimensionality
@@ -228,14 +232,18 @@ src/advisory/
                         # data), db; live wiring: market_state_live, analogs_live,
                         # calibration_live, kronos_forecast_live, stress_live,
                         # track_record_live, data_health_live, recommendation_log,
-                        # notes_live, synthesis_live, research_radar_live
+                        # notes_live, synthesis_live, research_radar_live,
+                        # watchlist_live (user-editable watchlist + async ingest)
   dashboard/            # Streamlit entry, state helpers, components, 8 pages (legacy UI)
                         # V7_lite: mode indicator, survivorship panel, locked tiles
   paper_trading/        # RealisticExecutionHarness
                         # V7_lite: CS-spread / amihud_z separation assertion
 
 frontend/               # React + Vite + TypeScript SPA (current UI)
-                        # src/api.ts (typed client), App.tsx, views/, components/
+                        # src/{api.ts, App.tsx (polls while a ticker ingests), theme.ts}
+                        # components/{Sidebar, Header}; views/{Overview, TrackRecord,
+                        # Portfolio, Journal, Calibration, Validation}
+run_dashboard.bat       # one-click Windows launcher (API + frontend; edit CONFIG block)
 config/                 # settings.py + sector_map.yaml + lite_feature_set_9dim.yaml
 scripts/                # bootstrap_db, seed_synthetic_data, ingest_real_data,
                         # run_validation, train_hmm, validate_hmm_candidate, run_api;
@@ -244,7 +252,7 @@ scripts/                # bootstrap_db, seed_synthetic_data, ingest_real_data,
                         # enhancement refresh: track_record, snapshot_recommendations,
                         # research_radar
 brainstorm/             # feature roadmap + Tier 1-3 specs + frontend display spec
-tests/                  # 280 passing tests (V7 + V7_lite + enhancement sections)
+tests/                  # 289 passing tests (V7 + V7_lite + enhancement + watchlist)
 docs/                   # full architecture & usage docs
 ```
 

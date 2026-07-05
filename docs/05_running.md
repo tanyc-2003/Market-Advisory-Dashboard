@@ -115,6 +115,48 @@ Persisted 11 ValidationReport(s) to data\db\main.duckdb
 
 (Sharpes are inflated because the synthetic data has positive drift; a real-data run would produce more realistic numbers.)  Re-running the script is idempotent — `persist_report` uses `INSERT OR REPLACE`.
 
+## Running the dashboard (web UI)
+
+The current UI is a React SPA over a FastAPI backend (full architecture in
+[10_web_stack.md](10_web_stack.md)).
+
+### One-click launch (Windows)
+
+Double-click **`run_dashboard.bat`** in the repo root (or run it from a terminal).
+It starts the API (`:8000`) and the Vite frontend (`:5173`), each in its own
+window, installs the frontend/API deps on first run, and opens your browser. The
+CONFIG block at the top of the file toggles:
+
+- `UI_MODE` — `react` (default) or `streamlit` (legacy UI on `:8501`)
+- `APP_MODE` — `v7_lite` (default) or `v7_institutional`
+- `LLM_ENABLED` — `false` (default); `true` needs a local Ollama
+- `API_PORT` / `FRONTEND_PORT`
+- `RUN_DATA_PIPELINE` — `no` (default) or `yes` to ingest real data + train the
+  HMM first so the live panels are real
+
+It expects the venv at `.venv`; create it once with
+`py -3 -m venv .venv` then `.venv\Scripts\python -m pip install -e ".[dev,api]"`.
+
+### By hand
+
+```powershell
+pip install -e ".[api]"
+python scripts/run_api.py                       # FastAPI on http://localhost:8000
+# second terminal:
+cd frontend; npm install; npm run dev           # Vite on http://localhost:5173
+```
+
+With no DuckDB/model present the dashboard renders representative data (the
+sidebar says so); run the ingest + train pipeline above to make the market-state,
+watchlist, sizing and calibration panels live.
+
+### Adding a ticker
+
+The watchlist is user-editable — type a symbol into the Overview's watchlist and
+click **Add**. It's ingested asynchronously (~10y OHLCV from yfinance) and the row
+fills in on its own within a few seconds; the **×** removes it. Equivalent to a
+single-ticker `ingest_real_data.py`. (API: `POST` / `DELETE /api/watchlist/{ticker}`.)
+
 ## Refresh the enhancement sections (optional, out-of-band)
 
 The Tier 1–3 sections that need heavy compute or the network are refreshed by

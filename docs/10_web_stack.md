@@ -19,8 +19,8 @@ surface over the same DuckDB stores and layer modules.
     │  (loads the SPA, then fetches JSON)
     ▼
   React + Vite SPA  ── frontend/src ──────────────────────────────┐
-    │   App.tsx fetches GET /api/dashboard on mount;               │
-    │   journal form POSTs; views render typed slices.             │
+    │   App.tsx fetches GET /api/dashboard on mount; journal/notes │
+    │   /watchlist POST; polls while a ticker ingests; typed slices.│
     ▼                                                              │
   /api/*  (Vite dev proxy → :8000, or same-origin in prod)        │
     ▼                                                              │
@@ -30,6 +30,7 @@ surface over the same DuckDB stores and layer modules.
     │    ├─ meta / gate / survivorship / DSR   (real wiring)       ││
     │    ├─ market_state_live.py   → Layer 1 HMM       (live)      ││
     │    ├─ analogs_live.py        → Layers 2 + 10     (live)      ││
+    │    │     └─ watchlist_live.py → user-editable ticker set     ││
     │    ├─ kronos_forecast_live.py→ Kronos forecast   (validated) ││
     │    ├─ calibration_live.py    → Layer 9           (live)      ││
     │    ├─ stress_live.py         → Layer 5 composite (disclosed) ││
@@ -74,8 +75,9 @@ dashboard. The difference is transport (JSON over HTTP) and presentation (React)
 | `notes_live.py` | Per-ticker notes inbox (Tier 2 #6) — durable alerts/outcomes/trader notes (`notes`) |
 | `stress_live.py` | Composite market-stress gauge (Tier 3 #7) — 0–100 heuristic from `features_pit`; ships `validated:false` with its weights shown |
 | `research_radar_live.py` | arXiv research radar (Tier 3 #8) — reads the `research_cache` table (refreshed out-of-band) |
+| `watchlist_live.py` | User-editable watchlist — the `watchlist` table (lazy-seeded defaults), symbol validation, add/remove, and the **async ingest** job (see [Dynamic watchlist](#dynamic-watchlist)). `analogs_live.compute_watchlist` reads it |
 
-The last eight follow the **same `compute_<section>(conn) -> payload | None`** contract as the Layer 1/2/9 live modules — real when the stores/artifacts exist, `None` to fall back to `presentation.py`. See the tier roadmap in [brainstorm/feature-roadmap.md](../brainstorm/feature-roadmap.md) and the section reference in [11_dashboard_sections.md](11_dashboard_sections.md).
+The enhancement modules follow the **same `compute_<section>(conn) -> payload | None`** contract as the Layer 1/2/9 live modules — real when the stores/artifacts exist, `None` to fall back to `presentation.py`. See the tier roadmap in [brainstorm/feature-roadmap.md](../brainstorm/feature-roadmap.md) and the section reference in [11_dashboard_sections.md](11_dashboard_sections.md).
 
 ### Routes
 
@@ -88,6 +90,8 @@ The last eight follow the **same `compute_<section>(conn) -> payload | None`** c
 | `POST /api/notes` | Add a trader note to the inbox; returns the refreshed dashboard |
 | `POST /api/notes/{id}/read` | Mark a note read; returns the refreshed dashboard |
 | `POST /api/recommendations/{ticker}/rationale` | Attach a rationale ("commit message") to a ticker's most recent recommendation change; returns the refreshed dashboard |
+| `POST /api/watchlist/{ticker}` | Add a ticker to the watchlist (validates → 400 on a bad symbol); inserts it `pending`, starts the async ingest, returns the refreshed dashboard |
+| `DELETE /api/watchlist/{ticker}` | Remove a ticker from the watchlist; returns the refreshed dashboard (404 if it wasn't present) |
 
 The SPA loads `/api/dashboard` once on mount, so a page render is a single round
 trip. Every mutating route returns the *refreshed* dashboard so the client can
@@ -107,6 +111,8 @@ bootstrap the schema on demand.
                 "p5","p25","p50","p75","p95",
                 "disagreement","disagreementNote?","drivers",
                 "sizing":{ "raw","std","regime","displayed" },
+                "pUp?","pVolShift?","forecast?":[{ "h","p5","p50","p95" }],"forecastApprox?",
+                "status?","pending?",   // watchlist ingest: 'ready' | 'pending' | 'error'
                 // attached only when their producers run:
                 "kronos?":{ "forecast":[{ "h","p5","p50","p95" }],"p5","p50","p95",
                             "pUp","pVolShift","validated","liveEdge" }, // Kronos (Tier 3 #9)
@@ -164,7 +170,7 @@ and per-section `source` flags tell the client which it received.
 | Survivorship coverage | `SurvivorshipAuditor` over seeded features | features present | `"0.971"` |
 | DSR audit trials | `AuditLog.trial_count()` | `audit.duckdb` present | `"3,184"` |
 | **Market state** (Layer 1) | `market_state_live.py` — HMM regime occupancy | model + features present | representative |
-| **Watchlist + sizing** (Layers 2, 10) | `analogs_live.py` — analog distributions + Kelly | per-ticker features present | representative |
+| **Watchlist + sizing** (Layers 2, 10) | `analogs_live.py` over the user-editable `watchlist` table + Kelly | per-ticker features present | representative |
 | **Journal** (Layer 8) | `JournalStore` (real CRUD) | ≥1 logged entry | representative sample |
 | **Calibration** (Layer 9) | `calibration_live.py` — graded closed entries | ≥5 graded entries | representative |
 | Validation gate metrics (Layer 0) | overlays persisted `ValidationReport`s | report rows exist | representative rows |
@@ -220,6 +226,35 @@ one and marks the result `validated: false`.
 
 ---
 
+## Dynamic watchlist
+
+The watchlist is **user-editable**: any ticker can be added from the Overview and
+is ingested on demand, rather than being a hardcoded list.
+
+- **`watchlist` table** (`ticker`, `sector`, `status`, `added_at`) is the source
+  of truth; `watchlist_live.list_entries` **lazy-seeds** the defaults
+  (NVDA / MSFT / AAPL / GOOGL / AMZN) on first use, and `analogs_live.compute_watchlist`
+  iterates it instead of the old hardcoded `_WATCHLIST` (now just the seed).
+- **Add** (`POST /api/watchlist/{ticker}`) validates the symbol, inserts it
+  `pending`, and starts a background daemon thread. The thread fetches ~10y of
+  OHLCV from yfinance **off** the DB lock, then **under** `db.LOCK` writes the
+  engineered features + the `px_*` archive through the shared connection (via
+  `data_infra/ingest.py` — the API can't open a second `FeatureStore`) and flips
+  the status to `ready` (or `error`). It then invalidates the analog cache.
+- The GET path returns the ticker immediately as a lightweight **pending** asset
+  (`pending: true`, `status: "pending"`); the SPA polls every 4s until it flips,
+  then the full analog distribution (n, hit rate, forecast fan, bull/bear case)
+  appears. A thin-history or bad symbol surfaces honestly as an `error` row or the
+  usual low-confidence disclosure — never a silent failure.
+- **Remove** (`DELETE /api/watchlist/{ticker}`) drops the row (an empty table
+  re-seeds the defaults). User-added tickers show sector `—` (no fundamentals
+  fetch).
+
+The same ingestion also feeds the CLI path — `scripts/ingest_real_data.py`
+bulk-loads a universe; the in-app add is the single-ticker, on-demand equivalent.
+
+---
+
 ## The frontend (`frontend/`)
 
 React 18 + Vite + TypeScript. Styling is inline `CSSProperties` mirroring the
@@ -234,26 +269,29 @@ frontend/src/
   data.ts            # TypeScript shapes + UI copy (nav, headers) — values come from the API
   theme.ts           # design tokens (colours, fonts) + formatting helpers
   styles.ts          # shared typed style fragments
-  components/        # Sidebar, Header
-  views/             # Overview, Portfolio, Journal, Calibration, Validation
+  components/        # Sidebar (nav + collapsible Data health + Research radar), Header
+  views/             # Overview, TrackRecord, Portfolio, Journal, Calibration, Validation
 ```
 
-> **Frontend coverage.** The API already serves every Tier 1–3 enhancement
-> section (`trackRecord`, `dataHealth`, `stress`, `notes`, `recommendationChanges`,
-> `researchRadar`, per-asset `forecast`/`case`). The React SPA currently renders
-> the five core views above; panels for the enhancement sections are the pending
-> frontend work (the backend is complete and documented in
-> [11_dashboard_sections.md](11_dashboard_sections.md)). Because the payload is
-> additive and views render only their own slice, adding a panel needs no API
-> change.
+> **Frontend coverage.** All Tier 1–3 enhancement sections are now rendered. The
+> Overview carries the stress gauge, forecast fan, bull/bear case, notes inbox and
+> the decision change-log; **Track record** is a dedicated view; and the sidebar
+> hosts the collapsible Data health + Research radar panels. Each maps 1:1 onto the
+> `*_live.py` payload (see [11_dashboard_sections.md](11_dashboard_sections.md)).
+> Because the payload is additive and each view renders only its own slice, a new
+> panel needs no API change.
 
 Data flow:
 1. `App.tsx` calls `fetchDashboard()` on mount → shows a loading screen, then the
    layout, or an error screen with a Retry button if the API is unreachable.
-2. The single `DashboardData` object is sliced and passed to the five views as
+2. The single `DashboardData` object is sliced and passed to the six views as
    props. No view fetches on its own.
-3. The journal form calls `postJournalEntry()` / `closeJournalEntry()`, which
-   return the refreshed dashboard; `App` swaps it into state.
+3. Mutations (`postJournalEntry` / `closeJournalEntry` / `postNote` /
+   `markNoteRead` / `addWatchlistTicker` / `removeWatchlistTicker`) return the
+   refreshed dashboard; `App` swaps it into state.
+4. **Polling:** while any watchlist ticker is `pending` (still ingesting), `App`
+   re-fetches `/api/dashboard` every 4s so the row flips to a full analog row on
+   its own — the only time the SPA polls.
 
 Config:
 - Dev: `vite.config.ts` proxies `/api` → `http://localhost:8000`, so the SPA uses
@@ -264,7 +302,14 @@ Config:
 
 ## Running it
 
-Two processes (two terminals):
+On Windows the one-click way is the repo-root launcher **`run_dashboard.bat`**
+(double-click) — it starts the API and the frontend, each in its own window, and
+handles first-run dependency installs. Its CONFIG block at the top toggles
+`UI_MODE` (react/streamlit), `APP_MODE`, `LLM_ENABLED`, the ports, and
+`RUN_DATA_PIPELINE` (ingest + train so the live panels are real). See
+[05_running.md](05_running.md#one-click-launch-windows).
+
+By hand, two processes (two terminals):
 
 ```bash
 # terminal 1 — API (repo root)
@@ -283,8 +328,8 @@ journal trades) calibration panels switch to live.
 
 ## Extending: taking another section live
 
-The portfolio/stress (Layer 6) and alerts (Layer 7) panels are still
-representative. The pattern to take one live is fixed:
+The portfolio (Layer 6) panel is still representative (most other sections are now
+live — see the matrix above). The pattern to take one live is fixed:
 
 1. Add `src/advisory/api/<section>_live.py` with a `compute_<section>(conn)` that
    reads real stores / layer modules and returns the section's payload shape, or
