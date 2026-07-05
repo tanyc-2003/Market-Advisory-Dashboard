@@ -29,7 +29,7 @@ Module: [src/advisory/data_infra/](../src/advisory/data_infra/)
 
 | Symbol | Contract |
 |---|---|
-| `bootstrap_schema(conn)` | Idempotent DDL for all tables: `features_pit`, `delisted_tickers`, `paper_trade_performance`, `backtest_executions`, `validation_reports`, `journal_entries`, `llm_cache`, `hmm_model_registry`, `yfinance_fetch_audit`, `cboe_pc_ratio`, plus the enhancement tables `system_predictions`, `recommendation_changes`, `notes`, `research_cache`, `kronos_forecast_cache`. The **single** source of `CREATE TABLE` in the codebase. |
+| `bootstrap_schema(conn)` | Idempotent DDL for all tables: `features_pit`, `delisted_tickers`, `paper_trade_performance`, `backtest_executions`, `validation_reports`, `journal_entries`, `llm_cache`, `hmm_model_registry`, `yfinance_fetch_audit`, `cboe_pc_ratio`, plus the enhancement tables `system_predictions`, `recommendation_changes`, `notes`, `research_cache`, `kronos_forecast_cache`, `watchlist`. The **single** source of `CREATE TABLE` in the codebase. |
 | `PIT_QUERY` | The point-in-time SQL constant; uses `knowledge_date < ?` (strict less-than). |
 | `FUNDAMENTAL_LAGS` + `get_lag(name)` | Knowledge-date lag in trading days per feature. Unknown features default to 1 (conservative). |
 | `FeatureStore(db_path, cache_dir)` | The only read path for features. `get_feature_pit`, `get_feature_history` (lag-aware), `write_features`, `cache_snapshot`, `load_snapshot`. |
@@ -39,6 +39,7 @@ Module: [src/advisory/data_infra/](../src/advisory/data_infra/)
 | `FREDConnector` | Real macro series via FRED's public CSV endpoint — free, no API key.  `fetch_series(series_id, start, end)`. |
 | `compute_ohlcv_features(ohlcv)` | OHLCV → long-format feature rows (`ret_1d`/`5d`/`21d`/`63d`, `realized_vol_21d`, `rsi_14`, `pct_above_ma50`, `ret_fwd_10d`).  Schema matches `FeatureStore.write_features`. |
 | `ohlcv_pit_rows(ohlcv)` | OHLCV → `px_open`/`px_high`/`px_low`/`px_close`/`px_volume` PIT rows — the raw-candlestick archive the Kronos transformer reconstructs from (persisted by `ingest_real_data.py`). |
+| `ingest.write_features_conn(conn, df, source, version)` / `write_equity_ohlcv_conn(conn, ohlcv, ticker)` | Write features through an **existing** connection (mirrors `FeatureStore.write_features`). Used by the dynamic-watchlist add path, which can't open a second `FeatureStore` (the API holds the single read-write handle). Per-ticker idempotent. |
 | `vix_percentile_from_close`, `yield_curve_slope`, `hy_spread_roc` | Macro feature builders consuming FRED / VIX outputs. |
 
 ---

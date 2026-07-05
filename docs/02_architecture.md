@@ -103,7 +103,7 @@ Two DuckDB files:
 
 | File | Tables | Purpose |
 |---|---|---|
-| `data/db/main.duckdb` | `features_pit` (incl. `px_*` candlestick archive), `delisted_tickers`, `paper_trade_performance`, `validation_reports`, `journal_entries`, `llm_cache`, `hmm_model_registry`, `yfinance_fetch_audit`, `cboe_pc_ratio`, + enhancement tables `system_predictions`, `recommendation_changes`, `notes`, `research_cache`, `kronos_forecast_cache` | feature store + model registry + trader journal + the Tier 1–3 section stores |
+| `data/db/main.duckdb` | `features_pit` (incl. `px_*` candlestick archive), `delisted_tickers`, `paper_trade_performance`, `validation_reports`, `journal_entries`, `llm_cache`, `hmm_model_registry`, `yfinance_fetch_audit`, `cboe_pc_ratio`, + enhancement tables `system_predictions`, `recommendation_changes`, `notes`, `research_cache`, `kronos_forecast_cache`, `watchlist` | feature store + model registry + trader journal + user watchlist + the Tier 1–3 section stores |
 | `data/db/audit.duckdb` | `backtest_executions` | monotonic trial counter for DSR |
 
 The trial count is the **row count** of `backtest_executions`, not a separate counter column. A half-written insert cannot drift it.

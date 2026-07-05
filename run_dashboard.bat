@@ -35,7 +35,10 @@ REM                               LIVE instead of representative. Needs internet
 REM                               runs scripts\ingest_real_data.py then
 REM                               scripts\train_hmm.py --mode %APP_MODE%.
 REM
-REM  See docs\10_web_stack.md for the live-vs-representative wiring, and
+REM  Once it's running, the watchlist is user-editable: type a ticker in the
+REM  Overview and click Add -- it's ingested on the fly (no restart needed).
+REM  See docs\10_web_stack.md for the live-vs-representative wiring + the dynamic
+REM  watchlist (#dynamic-watchlist), docs\05_running.md for the run recipes, and
 REM  README.md for the full configuration reference (.env knobs, paid data, etc).
 REM  First-time setup, if the venv is missing:
 REM      py -3 -m venv .venv
