@@ -77,7 +77,7 @@ dashboard. The difference is transport (JSON over HTTP) and presentation (React)
 | `research_radar_live.py` | arXiv research radar (Tier 3 #8) — reads the `research_cache` table (refreshed out-of-band) |
 | `watchlist_live.py` | User-editable watchlist — the `watchlist` table (lazy-seeded defaults), symbol validation, add/remove, and the **async ingest** job (see [Dynamic watchlist](#dynamic-watchlist)). `analogs_live.compute_watchlist` reads it |
 
-The enhancement modules follow the **same `compute_<section>(conn) -> payload | None`** contract as the Layer 1/2/9 live modules — real when the stores/artifacts exist, `None` to fall back to `presentation.py`. See the tier roadmap in [brainstorm/feature-roadmap.md](../brainstorm/feature-roadmap.md) and the section reference in [11_dashboard_sections.md](11_dashboard_sections.md).
+The enhancement modules follow the **same `compute_<section>(conn) -> payload | None`** contract as the Layer 1/2/9 live modules — real when the stores/artifacts exist, `None` to fall back to `presentation.py`. Section-by-section reference in [11_dashboard_sections.md](11_dashboard_sections.md).
 
 ### Routes
 

@@ -164,7 +164,7 @@ CREATE TABLE IF NOT EXISTS cboe_pc_ratio (
 """
 
 # ------------------------------------------------------------------ #
-# Dashboard analytics extensions (additive) — see brainstorm/ specs.
+# Dashboard analytics extensions (additive) — see docs/11_dashboard_sections.md.
 # ------------------------------------------------------------------ #
 
 # System self-grading track record (Tier 1 #1). One row per (ticker, as-of

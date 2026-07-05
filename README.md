@@ -251,7 +251,6 @@ scripts/                # bootstrap_db, seed_synthetic_data, ingest_real_data,
                         # kronos_forecast, finetune_kronos;
                         # enhancement refresh: track_record, snapshot_recommendations,
                         # research_radar
-brainstorm/             # feature roadmap + Tier 1-3 specs + frontend display spec
 tests/                  # 289 passing tests (V7 + V7_lite + enhancement + watchlist)
 docs/                   # full architecture & usage docs
 ```
@@ -276,8 +275,6 @@ The full per-layer documentation lives in [`docs/`](docs/):
 - [docs/10_web_stack.md](docs/10_web_stack.md) — **React frontend + FastAPI API** (current UI): payload contract, live-vs-representative wiring, the data pipeline
 - [docs/11_dashboard_sections.md](docs/11_dashboard_sections.md) — the nine Tier 1–3 enhancement sections (track record, data health, forecast, synthesis, change-log, notes, stress, radar, Kronos): module, payload key, and gate for each
 - [docs/kronos_finetune.md](docs/kronos_finetune.md) — Kronos forecaster: fine-tune pipeline, GPU recipe, and the empirical gate result
-
-The enhancement-section roadmap (selection criteria, source repos, licensing) lives in [brainstorm/feature-roadmap.md](brainstorm/feature-roadmap.md) with per-tier specs alongside it.
 
 For background reading, the architecture source-of-truth is `Claude code building guide/Advisory_Dashboard_Architecture_v7.md` (and `_v7_lite.md` for the extension).  The phase-by-phase build guides are in the same folder.
 

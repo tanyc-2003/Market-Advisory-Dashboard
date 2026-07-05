@@ -77,7 +77,7 @@ recommendationChanges (change-log), notes inbox, stress gauge, researchRadar,
 and per-asset Kronos forecast. Each follows compute_<section>(conn) -> payload |
 None with a source flag; heavy/networked producers refresh OUT-OF-BAND
 (scripts/track_record.py, snapshot_recommendations.py, research_radar.py,
-kronos_forecast.py) — never on the GET path. Roadmap: brainstorm/feature-roadmap.md.
+kronos_forecast.py) — never on the GET path.
 
 ## Kronos forecaster (validated-only) — docs/kronos_finetune.md
 pip install -e ".[kronos]"                       # torch + einops + huggingface_hub

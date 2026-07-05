@@ -2,13 +2,9 @@
 
 Beyond the core layer views, the dashboard payload carries nine **enhancement
 sections** drawn from a reference-repo survey and mapped onto this system's
-evidence-gated, point-in-time philosophy. The planning rationale (selection
-criteria, source repos, licensing, sequencing) lives in
-[brainstorm/feature-roadmap.md](../brainstorm/feature-roadmap.md) and the per-tier
-specs in [brainstorm/tier-1-spec.md](../brainstorm/tier-1-spec.md) …
-`tier-3-spec.md`. This file is the **as-built reference**: what each section is,
-its backend module, its payload key, and — critically — *how it is allowed to
-appear* (its gate).
+evidence-gated, point-in-time philosophy. This file is the **as-built
+reference**: what each section is, its backend module, its payload key, and —
+critically — *how it is allowed to appear* (its gate).
 
 All nine are wired into `live.build_dashboard()` and follow the house
 `compute_<section>(conn) -> payload | None` seam ([10_web_stack.md](10_web_stack.md)):
@@ -147,4 +143,3 @@ ticker added in-app is ingested asynchronously (`watchlist` table + the
 - The dynamic watchlist (add/remove + async ingest): [10_web_stack.md#dynamic-watchlist](10_web_stack.md#dynamic-watchlist)
 - The Layer 0 invariant every gate serves: [01_overview.md](01_overview.md), [03_invariants.md](03_invariants.md)
 - Kronos model + fine-tune + gate result: [kronos_finetune.md](kronos_finetune.md)
-- Planning rationale and source repos: [brainstorm/feature-roadmap.md](../brainstorm/feature-roadmap.md)
